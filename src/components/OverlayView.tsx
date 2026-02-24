@@ -179,18 +179,18 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     return 0;
   }, [handle1.state.videoWidth, handle1.state.videoHeight, handle2.state.videoWidth, handle2.state.videoHeight]);
 
-  const matchedInner = useMemo(() => {
+  // Height the video content occupies in a SBS panel (half-width container).
+  // Used to constrain overlay height so switching modes keeps the same vertical crop.
+  const matchedHeight = useMemo(() => {
     const { w, h } = canvasSize;
     if (w === 0 || h === 0 || videoAR <= 0) return null;
     const sbsW = w / 2;
-    const sbsH = h;
-    // Compute object-contain box for a SBS panel
-    if (sbsW / sbsH > videoAR) {
-      // height-constrained in SBS
-      return { w: sbsH * videoAR, h: sbsH };
+    if (sbsW / h > videoAR) {
+      // height-constrained in SBS panel → video fills full panel height
+      return h;
     } else {
-      // width-constrained in SBS
-      return { w: sbsW, h: sbsW / videoAR };
+      // width-constrained in SBS panel → video height = sbsW / videoAR
+      return Math.min(sbsW / videoAR, h);
     }
   }, [canvasSize, videoAR]);
 
@@ -264,17 +264,17 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             if (file && isMediaFile(file) && onDropFile) onDropFile(file, side);
           }}
         >
-          {/* Inner container sized to match a SBS panel so the video crops identically */}
+          {/* Inner container: full canvas width, height matched to SBS so vertical crop is identical */}
           <div
             className="absolute overflow-hidden"
             style={
-              matchedInner
+              matchedHeight
                 ? {
-                    width: matchedInner.w,
-                    height: matchedInner.h,
+                    left: 0,
+                    right: 0,
+                    height: matchedHeight,
                     top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
+                    transform: 'translateY(-50%)',
                   }
                 : { inset: 0, position: 'absolute' }
             }
