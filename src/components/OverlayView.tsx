@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer';
 import { DEFAULT_TRANSFORM } from '../hooks/useVideoPlayer';
 import type { MarkupHandle } from '../hooks/useMarkup';
@@ -117,8 +117,6 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const [activePanel2, setActivePanel2] = useState<ToolStripPanel | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dropSide, setDropSide] = useState<1 | 2 | null>(null);
-  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
-  const canvasRef = useRef<HTMLDivElement>(null);
 
   const opacity2 = blendPosition / 100;
   const t1 = handle1.state.transform;
@@ -157,42 +155,6 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     document.addEventListener('mousedown', onMouseDown);
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, [activePanel1, activePanel2]);
-
-  useEffect(() => {
-    const el = canvasRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) setCanvasSize({ w: width, h: height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  // Compute the inner content area that matches what the video would occupy in SBS mode
-  // (half-width panel), so switching modes doesn't change the visible crop.
-  const videoAR = useMemo(() => {
-    if (handle1.state.videoWidth && handle1.state.videoHeight)
-      return handle1.state.videoWidth / handle1.state.videoHeight;
-    if (handle2.state.videoWidth && handle2.state.videoHeight)
-      return handle2.state.videoWidth / handle2.state.videoHeight;
-    return 0;
-  }, [handle1.state.videoWidth, handle1.state.videoHeight, handle2.state.videoWidth, handle2.state.videoHeight]);
-
-  // Height the video content occupies in a SBS panel (half-width container).
-  // Used to constrain overlay height so switching modes keeps the same vertical crop.
-  const matchedHeight = useMemo(() => {
-    const { w, h } = canvasSize;
-    if (w === 0 || h === 0 || videoAR <= 0) return null;
-    const sbsW = w / 2;
-    if (sbsW / h > videoAR) {
-      // height-constrained in SBS panel → video fills full panel height
-      return h;
-    } else {
-      // width-constrained in SBS panel → video height = sbsW / videoAR
-      return Math.min(sbsW / videoAR, h);
-    }
-  }, [canvasSize, videoAR]);
 
   const popup1 = activePanel1 === 'transform' ? (
     <TransformPanel embedded transform={handle1.state.transform} onChange={setTransform1} onReset={resetTransform1} synced={syncTransform} onSyncToggle={onSyncToggle} />
@@ -237,7 +199,6 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
 
         {/* Main canvas */}
         <div
-          ref={canvasRef}
           className="relative flex-1 min-h-0 rounded-lg overflow-hidden"
           style={{ backgroundColor: handle1.state.src ? undefined : '#808080' }}
           onDragOver={(e) => {
@@ -264,21 +225,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             if (file && isMediaFile(file) && onDropFile) onDropFile(file, side);
           }}
         >
-          {/* Inner container: full canvas width, height matched to SBS so vertical crop is identical */}
-          <div
-            className="absolute overflow-hidden"
-            style={
-              matchedHeight
-                ? {
-                    left: 0,
-                    right: 0,
-                    height: matchedHeight,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                  }
-                : { inset: 0, position: 'absolute' }
-            }
-          >
+          <div className="absolute inset-0">
             {handle1.state.src && (
               <div className="absolute inset-0">
                 {handle1.state.mediaType === 'image' ? (
