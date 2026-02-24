@@ -151,7 +151,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 alt=""
                 className="w-full h-full object-contain"
                 style={{
-                  transform: `translate(${transform.translateX}px, ${transform.translateY}px) scale(${transform.scale})`,
+                  transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
                 }}
               />
@@ -161,7 +161,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 src={videoSrc}
                 className="w-full h-full object-contain"
                 style={{
-                  transform: `translate(${transform.translateX}px, ${transform.translateY}px) scale(${transform.scale})`,
+                  transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
                 }}
                 playsInline

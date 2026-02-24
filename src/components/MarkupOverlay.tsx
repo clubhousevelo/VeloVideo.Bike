@@ -49,7 +49,7 @@ function toVisual(nx: number, ny: number, vBox: VideoBox, W: number, H: number, 
   const cy = vBox.y + ny * vBox.h;
   return {
     x: vt.scale * (cx - W / 2 + vt.translateX) + W / 2,
-    y: vt.scale * (cy - H / 2 + vt.translateY) + H / 2,
+    y: vt.scale * (cy - H / 2 - vt.translateY) + H / 2,
   };
 }
 
@@ -59,7 +59,7 @@ function toVisual(nx: number, ny: number, vBox: VideoBox, W: number, H: number, 
  */
 function toNormalized(canvasX: number, canvasY: number, vBox: VideoBox, W: number, H: number, vt: VideoTransform): Point {
   const contentX = (canvasX - W / 2) / vt.scale - vt.translateX + W / 2;
-  const contentY = (canvasY - H / 2) / vt.scale - vt.translateY + H / 2;
+  const contentY = (canvasY - H / 2) / vt.scale + vt.translateY + H / 2;
   return {
     x: (contentX - vBox.x) / vBox.w,
     y: (contentY - vBox.y) / vBox.h,

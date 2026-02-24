@@ -233,7 +233,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   alt=""
                   className="w-full h-full object-contain"
                   style={{
-                    transform: `translate(${handle1.state.transform.translateX}px, ${handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
+                    transform: `translate(${handle1.state.transform.translateX}px, ${-handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
                     transformOrigin: 'center center',
                   }}
                 />
@@ -243,7 +243,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   src={handle1.state.src}
                   className="w-full h-full object-contain"
                   style={{
-                    transform: `translate(${handle1.state.transform.translateX}px, ${handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
+                    transform: `translate(${handle1.state.transform.translateX}px, ${-handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
                     transformOrigin: 'center center',
                   }}
                   playsInline
@@ -266,7 +266,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   alt=""
                   className="w-full h-full object-contain"
                   style={{
-                    transform: `translate(${handle2.state.transform.translateX}px, ${handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
+                    transform: `translate(${handle2.state.transform.translateX}px, ${-handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
                     transformOrigin: 'center center',
                   }}
                 />
@@ -276,7 +276,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   src={handle2.state.src}
                   className="w-full h-full object-contain"
                   style={{
-                    transform: `translate(${handle2.state.transform.translateX}px, ${handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
+                    transform: `translate(${handle2.state.transform.translateX}px, ${-handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
                     transformOrigin: 'center center',
                   }}
                   playsInline
