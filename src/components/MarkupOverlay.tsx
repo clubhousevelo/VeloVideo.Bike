@@ -16,6 +16,7 @@
  */
 
 import { useRef, useState, useEffect, useCallback } from 'react';
+import type { HTMLAttributes } from 'react';
 import type { MarkupHandle, Point } from '../hooks/useMarkup';
 import type { VideoTransform } from '../hooks/useVideoPlayer';
 import { calcAngleDeg } from '../hooks/useMarkup';
@@ -562,20 +563,22 @@ export default function MarkupOverlay({ handle, transform, videoAR }: MarkupOver
                   }}
                 >
                   <div
-                    xmlns="http://www.w3.org/1999/xhtml"
-                    style={{
-                      width: boxWidthPx,
-                      minHeight: text.size * 1.2,
-                      padding: '2px 4px',
-                      boxSizing: 'border-box',
-                      color: text.color,
-                      backgroundColor: text.backgroundColor ?? 'transparent',
-                      fontSize: text.size,
-                      fontFamily: 'sans-serif',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      margin: 0,
-                    }}
+                    {...({
+                      xmlns: 'http://www.w3.org/1999/xhtml',
+                      style: {
+                        width: boxWidthPx,
+                        minHeight: text.size * 1.2,
+                        padding: '2px 4px',
+                        boxSizing: 'border-box',
+                        color: text.color,
+                        backgroundColor: text.backgroundColor ?? 'transparent',
+                        fontSize: text.size,
+                        fontFamily: 'sans-serif',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        margin: 0,
+                      },
+                    } as HTMLAttributes<HTMLDivElement>)}
                   >
                     {text.content || ' '}
                   </div>
