@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer';
 import { DEFAULT_TRANSFORM } from '../hooks/useVideoPlayer';
 import type { MarkupHandle } from '../hooks/useMarkup';
@@ -117,6 +117,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const [activePanel2, setActivePanel2] = useState<ToolStripPanel | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dropSide, setDropSide] = useState<1 | 2 | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const opacity2 = blendPosition / 100;
   const t1 = handle1.state.transform;
@@ -155,6 +157,42 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     document.addEventListener('mousedown', onMouseDown);
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, [activePanel1, activePanel2]);
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) setCanvasSize({ w: width, h: height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Compute the inner content area that matches what the video would occupy in SBS mode
+  // (half-width panel), so switching modes doesn't change the visible crop.
+  const videoAR = useMemo(() => {
+    if (handle1.state.videoWidth && handle1.state.videoHeight)
+      return handle1.state.videoWidth / handle1.state.videoHeight;
+    if (handle2.state.videoWidth && handle2.state.videoHeight)
+      return handle2.state.videoWidth / handle2.state.videoHeight;
+    return 0;
+  }, [handle1.state.videoWidth, handle1.state.videoHeight, handle2.state.videoWidth, handle2.state.videoHeight]);
+
+  const matchedInner = useMemo(() => {
+    const { w, h } = canvasSize;
+    if (w === 0 || h === 0 || videoAR <= 0) return null;
+    const sbsW = w / 2;
+    const sbsH = h;
+    // Compute object-contain box for a SBS panel
+    if (sbsW / sbsH > videoAR) {
+      // height-constrained in SBS
+      return { w: sbsH * videoAR, h: sbsH };
+    } else {
+      // width-constrained in SBS
+      return { w: sbsW, h: sbsW / videoAR };
+    }
+  }, [canvasSize, videoAR]);
 
   const popup1 = activePanel1 === 'transform' ? (
     <TransformPanel embedded transform={handle1.state.transform} onChange={setTransform1} onReset={resetTransform1} synced={syncTransform} onSyncToggle={onSyncToggle} />
@@ -199,6 +237,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
 
         {/* Main canvas */}
         <div
+          ref={canvasRef}
           className="relative flex-1 min-h-0 rounded-lg overflow-hidden"
           style={{ backgroundColor: handle1.state.src ? undefined : '#808080' }}
           onDragOver={(e) => {
@@ -225,77 +264,93 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             if (file && isMediaFile(file) && onDropFile) onDropFile(file, side);
           }}
         >
-          {handle1.state.src && (
-            <div className="absolute inset-0">
-              {handle1.state.mediaType === 'image' ? (
-                <img
-                  src={handle1.state.src}
-                  alt=""
-                  className="w-full h-full object-contain"
-                  style={{
-                    transform: `translate(${handle1.state.transform.translateX}px, ${-handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
-                    transformOrigin: 'center center',
-                  }}
+          {/* Inner container sized to match a SBS panel so the video crops identically */}
+          <div
+            className="absolute overflow-hidden"
+            style={
+              matchedInner
+                ? {
+                    width: matchedInner.w,
+                    height: matchedInner.h,
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                  }
+                : { inset: 0, position: 'absolute' }
+            }
+          >
+            {handle1.state.src && (
+              <div className="absolute inset-0">
+                {handle1.state.mediaType === 'image' ? (
+                  <img
+                    src={handle1.state.src}
+                    alt=""
+                    className="w-full h-full object-contain"
+                    style={{
+                      transform: `translate(${handle1.state.transform.translateX}px, ${-handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
+                      transformOrigin: 'center center',
+                    }}
+                  />
+                ) : (
+                  <video
+                    ref={handle1.videoRef}
+                    src={handle1.state.src}
+                    className="w-full h-full object-contain"
+                    style={{
+                      transform: `translate(${handle1.state.transform.translateX}px, ${-handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
+                      transformOrigin: 'center center',
+                    }}
+                    playsInline
+                    preload="auto"
+                  />
+                )}
+                <MarkupOverlay
+                  handle={markupHandle1}
+                  transform={handle1.state.transform}
+                  videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
                 />
-              ) : (
-                <video
-                  ref={handle1.videoRef}
-                  src={handle1.state.src}
-                  className="w-full h-full object-contain"
-                  style={{
-                    transform: `translate(${handle1.state.transform.translateX}px, ${-handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
-                    transformOrigin: 'center center',
-                  }}
-                  playsInline
-                  preload="auto"
-                />
-              )}
-              <MarkupOverlay
-                handle={markupHandle1}
-                transform={handle1.state.transform}
-                videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
-              />
-            </div>
-          )}
+              </div>
+            )}
 
-          {handle2.state.src && (
-            <div className="absolute inset-0" style={{ opacity: opacity2 }}>
-              {handle2.state.mediaType === 'image' ? (
-                <img
-                  src={handle2.state.src}
-                  alt=""
-                  className="w-full h-full object-contain"
-                  style={{
-                    transform: `translate(${handle2.state.transform.translateX}px, ${-handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
-                    transformOrigin: 'center center',
-                  }}
+            {handle2.state.src && (
+              <div className="absolute inset-0" style={{ opacity: opacity2 }}>
+                {handle2.state.mediaType === 'image' ? (
+                  <img
+                    src={handle2.state.src}
+                    alt=""
+                    className="w-full h-full object-contain"
+                    style={{
+                      transform: `translate(${handle2.state.transform.translateX}px, ${-handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
+                      transformOrigin: 'center center',
+                    }}
+                  />
+                ) : (
+                  <video
+                    ref={handle2.videoRef}
+                    src={handle2.state.src}
+                    className="w-full h-full object-contain"
+                    style={{
+                      transform: `translate(${handle2.state.transform.translateX}px, ${-handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
+                      transformOrigin: 'center center',
+                    }}
+                    playsInline
+                    preload="auto"
+                  />
+                )}
+                <MarkupOverlay
+                  handle={markupHandle2}
+                  transform={handle2.state.transform}
+                  videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
                 />
-              ) : (
-                <video
-                  ref={handle2.videoRef}
-                  src={handle2.state.src}
-                  className="w-full h-full object-contain"
-                  style={{
-                    transform: `translate(${handle2.state.transform.translateX}px, ${-handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
-                    transformOrigin: 'center center',
-                  }}
-                  playsInline
-                  preload="auto"
-                />
-              )}
-              <MarkupOverlay
-                handle={markupHandle2}
-                transform={handle2.state.transform}
-                videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
-              />
-            </div>
-          )}
+              </div>
+            )}
 
-          {!handle1.state.src && !handle2.state.src && !dragOver && (
-            <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm pointer-events-none">
-              Select videos below to begin
-            </div>
-          )}
+            {!handle1.state.src && !handle2.state.src && !dragOver && (
+              <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm pointer-events-none">
+                Select videos below to begin
+              </div>
+            )}
+          </div>
 
           <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-0.5 rounded pointer-events-none">
             V1: {100 - Math.round(opacity2 * 100)}%
