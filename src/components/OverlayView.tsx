@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer';
 import { DEFAULT_TRANSFORM } from '../hooks/useVideoPlayer';
 import type { MarkupHandle } from '../hooks/useMarkup';
@@ -117,6 +117,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const [activePanel2, setActivePanel2] = useState<ToolStripPanel | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dropSide, setDropSide] = useState<1 | 2 | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+  const canvasRef = useRef<HTMLDivElement>(null);
 
   const opacity2 = blendPosition / 100;
   const t1 = handle1.state.transform;
@@ -155,6 +157,50 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     document.addEventListener('mousedown', onMouseDown);
     return () => document.removeEventListener('mousedown', onMouseDown);
   }, [activePanel1, activePanel2]);
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) setCanvasSize({ w: width, h: height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Corrective scale: overlay canvas is wider than a SBS panel, so object-contain
+  // renders the video at a larger base size. This factor compensates so that the
+  // user's zoom level (e.g. 2×) produces the same visible crop in both modes.
+  const correctionScale = useMemo(() => {
+    const { w, h } = canvasSize;
+    if (w === 0 || h === 0) return 1;
+    const ar1 = handle1.state.videoWidth && handle1.state.videoHeight
+      ? handle1.state.videoWidth / handle1.state.videoHeight : 0;
+    const ar2 = handle2.state.videoWidth && handle2.state.videoHeight
+      ? handle2.state.videoWidth / handle2.state.videoHeight : 0;
+    const videoAR = ar1 || ar2;
+    if (videoAR <= 0) return 1;
+
+    // object-contain height in a SBS panel (half canvas width)
+    const sbsW = w / 2;
+    const sbsVideoH = sbsW / h > videoAR ? h : sbsW / videoAR;
+
+    // object-contain height in the full overlay canvas
+    const overlayVideoH = w / h > videoAR ? h : w / videoAR;
+
+    return overlayVideoH > 0 ? sbsVideoH / overlayVideoH : 1;
+  }, [canvasSize, handle1.state.videoWidth, handle1.state.videoHeight, handle2.state.videoWidth, handle2.state.videoHeight]);
+
+  // Effective transforms: correctionScale applied to scale only (display-only, not stored)
+  const effectiveTransform1 = useMemo<typeof t1>(
+    () => ({ ...t1, scale: t1.scale * correctionScale }),
+    [t1, correctionScale]
+  );
+  const effectiveTransform2 = useMemo<typeof t2>(
+    () => ({ ...t2, scale: t2.scale * correctionScale }),
+    [t2, correctionScale]
+  );
 
   const popup1 = activePanel1 === 'transform' ? (
     <TransformPanel embedded transform={handle1.state.transform} onChange={setTransform1} onReset={resetTransform1} synced={syncTransform} onSyncToggle={onSyncToggle} />
@@ -199,6 +245,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
 
         {/* Main canvas */}
         <div
+          ref={canvasRef}
           className="relative flex-1 min-h-0 rounded-lg overflow-hidden"
           style={{ backgroundColor: handle1.state.src ? undefined : '#808080' }}
           onDragOver={(e) => {
@@ -234,7 +281,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     alt=""
                     className="w-full h-full object-contain"
                     style={{
-                      transform: `translate(${handle1.state.transform.translateX}px, ${-handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
+                      transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
                     }}
                   />
@@ -244,7 +291,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     src={handle1.state.src}
                     className="w-full h-full object-contain"
                     style={{
-                      transform: `translate(${handle1.state.transform.translateX}px, ${-handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
+                      transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
                     }}
                     playsInline
@@ -253,7 +300,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                 )}
                 <MarkupOverlay
                   handle={markupHandle1}
-                  transform={handle1.state.transform}
+                  transform={effectiveTransform1}
                   videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
                 />
               </div>
@@ -267,7 +314,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     alt=""
                     className="w-full h-full object-contain"
                     style={{
-                      transform: `translate(${handle2.state.transform.translateX}px, ${-handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
+                      transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
                     }}
                   />
@@ -277,7 +324,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     src={handle2.state.src}
                     className="w-full h-full object-contain"
                     style={{
-                      transform: `translate(${handle2.state.transform.translateX}px, ${-handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
+                      transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
                     }}
                     playsInline
@@ -286,7 +333,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                 )}
                 <MarkupOverlay
                   handle={markupHandle2}
-                  transform={handle2.state.transform}
+                  transform={effectiveTransform2}
                   videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
                 />
               </div>
