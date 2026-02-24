@@ -1,0 +1,421 @@
+import { useState, useRef, useEffect } from 'react';
+import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer';
+import { DEFAULT_TRANSFORM } from '../hooks/useVideoPlayer';
+import type { MarkupHandle } from '../hooks/useMarkup';
+import ScrubberWithTrim from './ScrubberWithTrim';
+import TransformPanel from './TransformPanel';
+import MarkupPopupByType from './MarkupPopupByType';
+import MarkupOverlay from './MarkupOverlay';
+import ToolStrip from './ToolStrip';
+import ActionStrip from './ActionStrip';
+import type { ToolStripPanel } from './ToolStrip';
+import { isMediaFile } from '../lib/videoFile';
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 10);
+  return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
+}
+
+function VideoControls({ label, handle, onRemove }: { label: string; handle: VideoPlayerHandle; onRemove?: () => void }) {
+  const { state, selectFile, clearVideo, togglePlay, scrub, setTrimStart, setTrimEnd, stepFrame } = handle;
+  const handleRemove = () => { clearVideo(); onRemove?.(); };
+
+  if (!state.src) {
+    return (
+      <div className="space-y-2">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
+        <button
+          onClick={selectFile}
+          className="w-full py-3 border border-dashed border-slate-600 rounded-lg text-slate-400 text-sm hover:border-blue-400 hover:text-blue-400 transition-colors"
+        >
+          Select video or image
+        </button>
+      </div>
+    );
+  }
+
+  const isImage = state.mediaType === 'image';
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
+        <div className="text-xs text-slate-500 truncate max-w-[200px]">{state.fileName}</div>
+      </div>
+      {!isImage && (
+        <>
+          <ScrubberWithTrim
+            duration={state.duration}
+            currentTime={state.currentTime}
+            trimStart={state.trimStart}
+            trimEnd={state.trimEnd}
+            onScrub={scrub}
+            onTrimStartChange={setTrimStart}
+            onTrimEndChange={setTrimEnd}
+            trackHeight="h-4"
+          />
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>{formatTime(Math.max(0, state.currentTime - state.trimStart))}</span>
+            <span className="text-slate-500">/ {formatTime(Math.max(0, state.trimEnd - state.trimStart))}</span>
+          </div>
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={() => stepFrame(-1)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
+            </button>
+            <button onClick={togglePlay} className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors">
+              {state.isPlaying ? (
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+              ) : (
+                <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+              )}
+            </button>
+            <button onClick={() => stepFrame(1)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+            </button>
+          </div>
+        </>
+      )}
+      {isImage && <div className="text-[10px] text-slate-500 py-0.5">Image</div>}
+      <div className="flex items-center justify-center gap-3">
+        <button onClick={selectFile} className="text-[10px] text-slate-500 hover:text-slate-300 py-0.5 transition-colors">
+          {isImage ? 'Change image' : 'Change video'}
+        </button>
+        <span className="text-slate-700 text-[10px]">|</span>
+        <button onClick={handleRemove} className="text-[10px] text-slate-600 hover:text-red-400 py-0.5 transition-colors">
+          Remove
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface OverlayViewProps {
+  handle1: VideoPlayerHandle;
+  handle2: VideoPlayerHandle;
+  markupHandle1: MarkupHandle;
+  markupHandle2: MarkupHandle;
+  activeVideo?: 1 | 2;
+  onActivate1?: () => void;
+  onActivate2?: () => void;
+  onRemoveVideo1?: () => void;
+  onRemoveVideo2?: () => void;
+  /** Drop on left half → V1, drop on right half → V2 */
+  onDropFile?: (file: File, target: 1 | 2) => void;
+  onTransformChange1?: (t: Partial<VideoTransform>) => void;
+  onTransformReset1?: () => void;
+  onTransformChange2?: (t: Partial<VideoTransform>) => void;
+  onTransformReset2?: () => void;
+  syncTransform?: boolean;
+  onSyncToggle?: (enabled: boolean, current: VideoTransform) => void;
+}
+
+export default function OverlayView({ handle1, handle2, markupHandle1, markupHandle2, activeVideo, onActivate1, onActivate2, onRemoveVideo1, onRemoveVideo2, onDropFile, onTransformChange1, onTransformReset1, onTransformChange2, onTransformReset2, syncTransform, onSyncToggle }: OverlayViewProps) {
+  const [blendPosition, setBlendPosition] = useState(50);
+  const [activePanel1, setActivePanel1] = useState<ToolStripPanel | null>(null);
+  const [activePanel2, setActivePanel2] = useState<ToolStripPanel | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [dropSide, setDropSide] = useState<1 | 2 | null>(null);
+
+  const opacity2 = blendPosition / 100;
+  const t1 = handle1.state.transform;
+  const t2 = handle2.state.transform;
+  const transform1Active = t1.scale !== DEFAULT_TRANSFORM.scale || t1.translateX !== DEFAULT_TRANSFORM.translateX || t1.translateY !== DEFAULT_TRANSFORM.translateY;
+  const transform2Active = t2.scale !== DEFAULT_TRANSFORM.scale || t2.translateX !== DEFAULT_TRANSFORM.translateX || t2.translateY !== DEFAULT_TRANSFORM.translateY;
+  const grid1Active = markupHandle1.state.grid.show;
+  const line1Active = markupHandle1.state.lines.length > 0;
+  const angle1Active = markupHandle1.state.angles.length > 0;
+  const text1Active = markupHandle1.state.texts.length > 0;
+  const grid2Active = markupHandle2.state.grid.show;
+  const line2Active = markupHandle2.state.lines.length > 0;
+  const angle2Active = markupHandle2.state.angles.length > 0;
+  const text2Active = markupHandle2.state.texts.length > 0;
+  const hasMarkup1 = line1Active || angle1Active || text1Active;
+  const hasMarkup2 = line2Active || angle2Active || text2Active;
+
+  const setTransform1 = onTransformChange1 ?? handle1.setTransform;
+  const setTransform2 = onTransformChange2 ?? handle2.setTransform;
+  const resetTransform1 = onTransformReset1 ?? handle1.resetTransform;
+  const resetTransform2 = onTransformReset2 ?? handle2.resetTransform;
+  const activeRing1 = activeVideo === 1 ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
+  const activeRing2 = activeVideo === 2 ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
+
+  const stripRef1 = useRef<HTMLDivElement>(null);
+  const stripRef2 = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!activePanel1 && !activePanel2) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (stripRef1.current?.contains(target) || stripRef2.current?.contains(target)) return;
+      setActivePanel1(null);
+      setActivePanel2(null);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, [activePanel1, activePanel2]);
+
+  const popup1 = activePanel1 === 'transform' ? (
+    <TransformPanel embedded transform={handle1.state.transform} onChange={setTransform1} onReset={resetTransform1} synced={syncTransform} onSyncToggle={onSyncToggle} />
+  ) : (activePanel1 === 'grid' || activePanel1 === 'line' || activePanel1 === 'angle' || activePanel1 === 'text') ? (
+    <MarkupPopupByType markup={markupHandle1} type={activePanel1} />
+  ) : null;
+
+  const popup2 = activePanel2 === 'transform' ? (
+    <TransformPanel embedded transform={handle2.state.transform} onChange={setTransform2} onReset={resetTransform2} synced={syncTransform} onSyncToggle={onSyncToggle} />
+  ) : (activePanel2 === 'grid' || activePanel2 === 'line' || activePanel2 === 'angle' || activePanel2 === 'text') ? (
+    <MarkupPopupByType markup={markupHandle2} type={activePanel2} />
+  ) : null;
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex flex-1 min-h-0 gap-1 items-stretch">
+        {/* Left strip: V1 tools */}
+        <div ref={stripRef1} className={`relative shrink-0 flex flex-col h-full gap-1 rounded-lg transition-shadow ${activeRing1}`} onClick={onActivate1}>
+          <ToolStrip
+            side="left"
+            active={activePanel1}
+            onActiveChange={setActivePanel1}
+            transformActive={transform1Active}
+            gridActive={grid1Active}
+            lineActive={line1Active}
+            angleActive={angle1Active}
+            textActive={text1Active}
+            markupHidden={markupHandle1.state.hidden}
+            onToggleHidden={() => markupHandle1.setHidden(!markupHandle1.state.hidden)}
+          />
+          <div className="flex-1 min-h-0" />
+          <ActionStrip
+            canUndo={markupHandle1.state.undoStack.length > 0}
+            canRedo={markupHandle1.state.redoStack.length > 0}
+            hasMarkup={hasMarkup1}
+            onUndo={markupHandle1.undo}
+            onRedo={markupHandle1.redo}
+            onClearAll={markupHandle1.clearAll}
+          />
+          {activePanel1 && <div className="absolute left-full top-0 ml-1 z-50">{popup1}</div>}
+        </div>
+
+        {/* Main canvas */}
+        <div
+          className="relative flex-1 min-h-0 rounded-lg overflow-hidden"
+          style={{ backgroundColor: handle1.state.src ? undefined : '#808080' }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (e.dataTransfer.types.includes('Files')) {
+              e.dataTransfer.dropEffect = 'copy';
+              setDragOver(true);
+              const rect = e.currentTarget.getBoundingClientRect();
+              setDropSide(e.clientX - rect.left < rect.width / 2 ? 1 : 2);
+            }
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              setDragOver(false);
+              setDropSide(null);
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const side = dropSide ?? 1;
+            setDragOver(false);
+            setDropSide(null);
+            const file = e.dataTransfer.files?.[0];
+            if (file && isMediaFile(file) && onDropFile) onDropFile(file, side);
+          }}
+        >
+          {handle1.state.src && (
+            <div className="absolute inset-0">
+              {handle1.state.mediaType === 'image' ? (
+                <img
+                  src={handle1.state.src}
+                  alt=""
+                  className="w-full h-full object-contain"
+                  style={{
+                    transform: `translate(${handle1.state.transform.translateX}px, ${handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
+                    transformOrigin: 'center center',
+                  }}
+                />
+              ) : (
+                <video
+                  ref={handle1.videoRef}
+                  src={handle1.state.src}
+                  className="w-full h-full object-contain"
+                  style={{
+                    transform: `translate(${handle1.state.transform.translateX}px, ${handle1.state.transform.translateY}px) scale(${handle1.state.transform.scale})`,
+                    transformOrigin: 'center center',
+                  }}
+                  playsInline
+                  preload="auto"
+                />
+              )}
+              <MarkupOverlay
+                handle={markupHandle1}
+                transform={handle1.state.transform}
+                videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
+              />
+            </div>
+          )}
+
+          {handle2.state.src && (
+            <div className="absolute inset-0" style={{ opacity: opacity2 }}>
+              {handle2.state.mediaType === 'image' ? (
+                <img
+                  src={handle2.state.src}
+                  alt=""
+                  className="w-full h-full object-contain"
+                  style={{
+                    transform: `translate(${handle2.state.transform.translateX}px, ${handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
+                    transformOrigin: 'center center',
+                  }}
+                />
+              ) : (
+                <video
+                  ref={handle2.videoRef}
+                  src={handle2.state.src}
+                  className="w-full h-full object-contain"
+                  style={{
+                    transform: `translate(${handle2.state.transform.translateX}px, ${handle2.state.transform.translateY}px) scale(${handle2.state.transform.scale})`,
+                    transformOrigin: 'center center',
+                  }}
+                  playsInline
+                  preload="auto"
+                />
+              )}
+              <MarkupOverlay
+                handle={markupHandle2}
+                transform={handle2.state.transform}
+                videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
+              />
+            </div>
+          )}
+
+          {!handle1.state.src && !handle2.state.src && !dragOver && (
+            <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm pointer-events-none">
+              Select videos below to begin
+            </div>
+          )}
+
+          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-0.5 rounded pointer-events-none">
+            V1: {100 - Math.round(opacity2 * 100)}%
+          </div>
+          <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-0.5 rounded pointer-events-none">
+            V2: {Math.round(opacity2 * 100)}%
+          </div>
+
+          {/* Drag-and-drop zone indicators */}
+          {dragOver && (
+            <div className="absolute inset-0 pointer-events-none z-20">
+              {/* Left half — V1 target */}
+              <div
+                className={`absolute inset-y-0 left-0 w-1/2 flex items-center justify-center transition-colors duration-100 ${
+                  dropSide === 1
+                    ? 'bg-blue-500/30'
+                    : dropSide === 2
+                    ? 'bg-black/40'
+                    : 'bg-blue-500/10'
+                }`}
+              >
+                <div
+                  className={`flex flex-col items-center gap-2 transition-all duration-100 ${
+                    dropSide === 1 ? 'scale-100 opacity-100' : 'scale-90 opacity-50'
+                  }`}
+                >
+                  <svg className="w-6 h-6 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                  </svg>
+                  <div
+                    className={`text-xs font-bold px-3 py-1 rounded-md whitespace-nowrap ${
+                      dropSide === 1 ? 'bg-blue-600 text-white shadow-lg' : 'bg-black/60 text-blue-300'
+                    }`}
+                  >
+                    {handle1.state.src ? 'Replace V1' : 'Set as V1'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Center divider */}
+              <div className="absolute inset-y-0 left-1/2 w-px bg-white/25" />
+
+              {/* Right half — V2 target */}
+              <div
+                className={`absolute inset-y-0 right-0 w-1/2 flex items-center justify-center transition-colors duration-100 ${
+                  dropSide === 2
+                    ? 'bg-purple-500/30'
+                    : dropSide === 1
+                    ? 'bg-black/40'
+                    : 'bg-purple-500/10'
+                }`}
+              >
+                <div
+                  className={`flex flex-col items-center gap-2 transition-all duration-100 ${
+                    dropSide === 2 ? 'scale-100 opacity-100' : 'scale-90 opacity-50'
+                  }`}
+                >
+                  <svg className="w-6 h-6 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                  </svg>
+                  <div
+                    className={`text-xs font-bold px-3 py-1 rounded-md whitespace-nowrap ${
+                      dropSide === 2 ? 'bg-purple-600 text-white shadow-lg' : 'bg-black/60 text-purple-300'
+                    }`}
+                  >
+                    {handle2.state.src ? 'Replace V2' : 'Set as V2'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right strip: V2 tools */}
+        <div ref={stripRef2} className={`relative shrink-0 flex flex-col h-full gap-1 rounded-lg transition-shadow ${activeRing2}`} onClick={onActivate2}>
+          <ToolStrip
+            side="right"
+            active={activePanel2}
+            onActiveChange={setActivePanel2}
+            transformActive={transform2Active}
+            gridActive={grid2Active}
+            lineActive={line2Active}
+            angleActive={angle2Active}
+            textActive={text2Active}
+            markupHidden={markupHandle2.state.hidden}
+            onToggleHidden={() => markupHandle2.setHidden(!markupHandle2.state.hidden)}
+          />
+          <div className="flex-1 min-h-0" />
+          <ActionStrip
+            canUndo={markupHandle2.state.undoStack.length > 0}
+            canRedo={markupHandle2.state.redoStack.length > 0}
+            hasMarkup={hasMarkup2}
+            onUndo={markupHandle2.undo}
+            onRedo={markupHandle2.redo}
+            onClearAll={markupHandle2.clearAll}
+          />
+          {activePanel2 && <div className="absolute right-full top-0 mr-1 z-50">{popup2}</div>}
+        </div>
+      </div>
+
+      {/* Opacity blend slider */}
+      <div className="mt-2 flex justify-center shrink-0">
+        <div className="flex items-center gap-3 w-64">
+          <span className="text-xs text-blue-400 font-medium shrink-0">V1</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={blendPosition}
+            onChange={(e) => setBlendPosition(parseInt(e.target.value))}
+            className="flex-1"
+          />
+          <span className="text-xs text-purple-400 font-medium shrink-0">V2</span>
+        </div>
+      </div>
+
+      <div className="mt-2 shrink-0 grid grid-cols-2 gap-4">
+        <VideoControls label="Video 1" handle={handle1} onRemove={onRemoveVideo1} />
+        <VideoControls label="Video 2" handle={handle2} onRemove={onRemoveVideo2} />
+      </div>
+    </div>
+  );
+}
