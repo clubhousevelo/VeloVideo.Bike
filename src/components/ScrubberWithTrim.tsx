@@ -1,4 +1,5 @@
 import { useRef, useCallback } from 'react';
+import type { ScrubberMarker } from '../hooks/useMarkup';
 
 interface ScrubberWithTrimProps {
   duration: number;
@@ -8,9 +9,13 @@ interface ScrubberWithTrimProps {
   onScrub: (time: number) => void;
   onTrimStartChange: (time: number) => void;
   onTrimEndChange: (time: number) => void;
+  /** Markers (line/angle/text creation timestamps) to show on the scrubber. Click to seek. */
+  markers?: ScrubberMarker[];
   className?: string;
   trackHeight?: string;
 }
+
+const MARKER_COLORS = { line: '#22c55e', angle: '#f59e0b', text: '#3b82f6' } as const;
 
 export default function ScrubberWithTrim({
   duration,
@@ -20,6 +25,7 @@ export default function ScrubberWithTrim({
   onScrub,
   onTrimStartChange,
   onTrimEndChange,
+  markers = [],
   className = '',
   trackHeight = 'h-5',
 }: ScrubberWithTrimProps) {
@@ -80,11 +86,21 @@ export default function ScrubberWithTrim({
 
   const trimStartPercent = duration > 0 ? (trimStart / duration) * 100 : 0;
   const trimEndPercent = duration > 0 ? (trimEnd / duration) * 100 : 100;
+  const trimWidthPercent = trimEndPercent - trimStartPercent;
+
+  const handleMarkerClick = useCallback(
+    (e: React.MouseEvent, time: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onScrub(time);
+    },
+    [onScrub]
+  );
+
   const progressInTrim =
     duration > 0 && trimEnd > trimStart
       ? ((currentTime - trimStart) / (trimEnd - trimStart)) * 100
       : 0;
-  const trimWidthPercent = trimEndPercent - trimStartPercent;
   const playheadPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
@@ -106,6 +122,26 @@ export default function ScrubberWithTrim({
           width: `${(progressInTrim / 100) * trimWidthPercent}%`,
         }}
       />
+
+      {/* Markers (line/angle/text creation timestamps) */}
+      {markers.map((m) => {
+        const pct = duration > 0 ? (m.time / duration) * 100 : 0;
+        const color = MARKER_COLORS[m.type];
+        return (
+          <button
+            key={`${m.type}-${m.id}`}
+            type="button"
+            onClick={(e) => handleMarkerClick(e, m.time)}
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm z-20 hover:scale-125 transition-transform cursor-pointer"
+            style={{
+              left: `${pct}%`,
+              backgroundColor: color,
+            }}
+            title={`${m.type} at ${m.time.toFixed(1)}s — click to seek`}
+            aria-label={`Seek to ${m.type} marker at ${m.time.toFixed(1)} seconds`}
+          />
+        );
+      })}
 
       {/* Playhead handle (circle on timeline) */}
       <div

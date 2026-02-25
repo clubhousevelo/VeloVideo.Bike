@@ -18,6 +18,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import type { HTMLAttributes } from 'react';
 import type { MarkupHandle, Point } from '../hooks/useMarkup';
+import { DEFAULT_DISPLAY_DURATION } from '../hooks/useMarkup';
 import type { VideoTransform } from '../hooks/useVideoPlayer';
 import { calcAngleDeg } from '../hooks/useMarkup';
 
@@ -140,6 +141,8 @@ interface MarkupOverlayProps {
   videoAR: number;
   /** Optional: scale the effective video box (e.g. overlay correction). Use raw transform when set. */
   correctionScale?: number;
+  /** Video current time (seconds). Used for timestamp when adding markups and for visibility filtering. */
+  currentTime?: number;
 }
 
 type DragState =
@@ -150,7 +153,22 @@ type DragState =
   | { kind: 'body-text'; id: string; ox: number; oy: number; mx0: number; my0: number }
   | { kind: 'box-resize'; id: string; origBoxNorm: number; startCanvasX: number };
 
-export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1 }: MarkupOverlayProps) {
+function isMarkupVisible(
+  timestamp: number | undefined,
+  displayDuration: number | null | undefined,
+  defaultDuration: number | null,
+  currentTime: number
+): boolean {
+  if (timestamp === undefined) return true; // legacy: no timestamp = always visible
+  const t = timestamp;
+  if (currentTime < t) return false;
+  // undefined = use default; null = explicit infinite; number = that many seconds
+  const dur = displayDuration === undefined ? defaultDuration : displayDuration;
+  if (dur === null || dur === undefined) return true;
+  return currentTime <= t + dur;
+}
+
+export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1, currentTime = 0 }: MarkupOverlayProps) {
   const { state, addLine, addAngle, addText, updateLine, updateAngle, updateText, setSelected, setTool, snapshotForUndo, removeItem } = handle;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -187,6 +205,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         setPendingPoints([]);
         setEditingText(null);
         setDrag(null);
+        if (state.tool !== 'none') setTool('none');
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && !inInput) {
@@ -205,7 +224,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [state.selected, removeItem]);
+  }, [state.selected, state.tool, removeItem, setTool]);
 
   // Derived helpers (re-computed per render but cheap)
   const W = svgSize.width;
@@ -232,22 +251,25 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }, []);
 
-  // Hit test against visual (canvas) positions of stored items
+  // Hit test against visual (canvas) positions of visible stored items
   const hitTest = useCallback((canvasPt: Point) => {
-    for (const line of state.lines) {
+    const vLines = state.lines.filter((l) => isMarkupVisible(l.timestamp, l.displayDuration, DEFAULT_DISPLAY_DURATION.line, currentTime));
+    const vAngles = state.angles.filter((a) => isMarkupVisible(a.timestamp, a.displayDuration, DEFAULT_DISPLAY_DURATION.angle, currentTime));
+    const vTexts = state.texts.filter((t) => isMarkupVisible(t.timestamp, t.displayDuration, DEFAULT_DISPLAY_DURATION.text, currentTime));
+    for (const line of vLines) {
       const p1 = vis(line.x1, line.y1);
       const p2 = vis(line.x2, line.y2);
       if (distToSegment(canvasPt.x, canvasPt.y, p1.x, p1.y, p2.x, p2.y) <= HIT_THRESHOLD)
         return { type: 'line' as const, id: line.id };
     }
-    for (const angle of state.angles) {
+    for (const angle of vAngles) {
       const vp1 = vis(angle.p1.x, angle.p1.y);
       const vvx = vis(angle.vertex.x, angle.vertex.y);
       const vp2 = vis(angle.p2.x, angle.p2.y);
       if (distToSegment(canvasPt.x, canvasPt.y, vp1.x, vp1.y, vvx.x, vvx.y) <= HIT_THRESHOLD) return { type: 'angle' as const, id: angle.id };
       if (distToSegment(canvasPt.x, canvasPt.y, vvx.x, vvx.y, vp2.x, vp2.y) <= HIT_THRESHOLD) return { type: 'angle' as const, id: angle.id };
     }
-    for (const text of state.texts) {
+    for (const text of vTexts) {
       const tp = vis(text.x, text.y);
       const boxW = text.boxWidth && text.boxWidth > 0 ? text.boxWidth * vBox.w : null;
       const approxW = boxW ?? text.content.length * text.size * 0.55;
@@ -256,7 +278,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         return { type: 'text' as const, id: text.id };
     }
     return null;
-  }, [state.lines, state.angles, state.texts, vis]);
+  }, [state.lines, state.angles, state.texts, vis, currentTime]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const canvasPt = getCanvasPoint(e);
@@ -353,7 +375,11 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         setPendingPoints([n]);
       } else {
         const p2 = e.shiftKey ? snapLineSecondPoint(pendingPoints[0], n, vis, norm) : n;
-        addLine({ x1: pendingPoints[0].x, y1: pendingPoints[0].y, x2: p2.x, y2: p2.y, color: state.activeColor, width: state.lineWidth });
+        addLine({
+          x1: pendingPoints[0].x, y1: pendingPoints[0].y, x2: p2.x, y2: p2.y,
+          color: state.activeColor, width: state.lineWidth,
+          timestamp: currentTime, displayDuration: DEFAULT_DISPLAY_DURATION.line,
+        });
         setPendingPoints([]);
         setTool('none');
       }
@@ -366,26 +392,34 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         setPendingPoints(next);
       } else {
         const [p1, vertex, p2] = next;
-        addAngle({ p1, vertex, p2, color: state.activeColor, width: state.lineWidth, angleDeg: calcAngleDeg(vis(p1.x, p1.y), vis(vertex.x, vertex.y), vis(p2.x, p2.y)) });
+        addAngle({
+          p1, vertex, p2, color: state.activeColor, width: state.lineWidth,
+          angleDeg: calcAngleDeg(vis(p1.x, p1.y), vis(vertex.x, vertex.y), vis(p2.x, p2.y)),
+          timestamp: currentTime, displayDuration: DEFAULT_DISPLAY_DURATION.angle,
+        });
         setPendingPoints([]);
         setTool('none');
       }
     } else if (state.tool === 'text') {
       setEditingText({ id: '', normX: n.x, normY: n.y, value: '' });
     }
-  }, [state.tool, state.activeColor, state.lineWidth, pendingPoints, addLine, addAngle, setTool, getCanvasPoint, norm, vis]);
+  }, [state.tool, state.activeColor, state.lineWidth, pendingPoints, addLine, addAngle, setTool, getCanvasPoint, norm, vis, currentTime]);
 
   const commitText = useCallback(() => {
     if (editingText) {
       if (editingText.id) {
         if (editingText.value.trim()) updateText(editingText.id, { content: editingText.value });
       } else if (editingText.value.trim()) {
-        addText({ x: editingText.normX, y: editingText.normY, content: editingText.value, size: state.textSize, color: state.activeColor });
+        addText({
+          x: editingText.normX, y: editingText.normY, content: editingText.value,
+          size: state.textSize, color: state.activeColor,
+          timestamp: currentTime, displayDuration: DEFAULT_DISPLAY_DURATION.text,
+        });
         setTool('none');
       }
     }
     setEditingText(null);
-  }, [editingText, addText, updateText, setTool, state.textSize, state.activeColor]);
+  }, [editingText, addText, updateText, setTool, state.textSize, state.activeColor, currentTime]);
 
   const startEpLineDrag = useCallback((id: string, pointIndex: 0 | 1) => (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -410,6 +444,9 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
 
   const isToolActive = state.tool !== 'none';
   const isDragging = drag !== null;
+  const visibleLines = state.lines.filter((l) => isMarkupVisible(l.timestamp, l.displayDuration, DEFAULT_DISPLAY_DURATION.line, currentTime));
+  const visibleAngles = state.angles.filter((a) => isMarkupVisible(a.timestamp, a.displayDuration, DEFAULT_DISPLAY_DURATION.angle, currentTime));
+  const visibleTexts = state.texts.filter((t) => isMarkupVisible(t.timestamp, t.displayDuration, DEFAULT_DISPLAY_DURATION.text, currentTime));
   const hasContent = state.grid.show || state.lines.length > 0 || state.angles.length > 0 || state.texts.length > 0;
   const dropShadow = 'drop-shadow(0 1px 3px rgba(0,0,0,0.9))';
 
@@ -450,7 +487,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       >
         {gridLines}
 
-        {state.lines.map((line) => {
+        {visibleLines.map((line) => {
           const p1 = vis(line.x1, line.y1);
           const p2 = vis(line.x2, line.y2);
           const isSel = state.selected?.type === 'line' && state.selected.id === line.id;
@@ -484,7 +521,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
           );
         })}
 
-        {state.angles.map((angle) => {
+        {visibleAngles.map((angle) => {
           const vp1 = vis(angle.p1.x, angle.p1.y);
           const vvx = vis(angle.vertex.x, angle.vertex.y);
           const vp2 = vis(angle.p2.x, angle.p2.y);
@@ -515,7 +552,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
           );
         })}
 
-        {state.texts.map((text) => {
+        {visibleTexts.map((text) => {
           const tp = vis(text.x, text.y);
           const isSel = state.selected?.type === 'text' && state.selected.id === text.id;
           const boxWidthPx = text.boxWidth && text.boxWidth > 0 ? text.boxWidth * vBox.w : 0;

@@ -22,6 +22,10 @@ export interface MarkupLine {
   width: number;
   /** Show line angle (0–90°) at center of line */
   showAngle?: boolean;
+  /** Video timestamp (seconds) when created. Used for scrubber markers and visibility. */
+  timestamp?: number;
+  /** Seconds to display; null = infinite. Default: infinite for lines. */
+  displayDuration?: number | null;
 }
 
 export interface MarkupAngle {
@@ -33,6 +37,10 @@ export interface MarkupAngle {
   /** Stroke width; default 2 if omitted (e.g. legacy data) */
   width?: number;
   angleDeg: number;
+  /** Video timestamp (seconds) when created. Used for scrubber markers and visibility. */
+  timestamp?: number;
+  /** Seconds to display; null = infinite. Default: 2 for angles. */
+  displayDuration?: number | null;
 }
 
 export interface MarkupText {
@@ -46,6 +54,10 @@ export interface MarkupText {
   backgroundColor?: string;
   /** Normalized width (0–1) for bounding box; 0 or undefined = single line, no wrap */
   boxWidth?: number;
+  /** Video timestamp (seconds) when created. Used for scrubber markers and visibility. */
+  timestamp?: number;
+  /** Seconds to display; null = infinite. Default: 5 for text. */
+  displayDuration?: number | null;
 }
 
 export type MarkupSelection = { type: 'line'; id: string } | { type: 'angle'; id: string } | { type: 'text'; id: string };
@@ -82,9 +94,9 @@ export interface MarkupHandle {
   addLine: (line: Omit<MarkupLine, 'id'>) => void;
   addAngle: (angle: Omit<MarkupAngle, 'id'>) => void;
   addText: (text: Omit<MarkupText, 'id'>) => void;
-  updateLine: (id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle'>>) => void;
-  updateAngle: (id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number }>) => void;
-  updateText: (id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth'>>) => void;
+  updateLine: (id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'displayDuration'>>) => void;
+  updateAngle: (id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; displayDuration: number | null }>) => void;
+  updateText: (id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth' | 'displayDuration'>>) => void;
   removeItem: (type: 'line' | 'angle' | 'text', id: string) => void;
   clearAll: () => void;
   undo: () => void;
@@ -97,6 +109,25 @@ export interface MarkupHandle {
 }
 
 export type Point = { x: number; y: number };
+
+/** Default display duration (seconds). null = infinite. */
+export const DEFAULT_DISPLAY_DURATION = { line: null as number | null, angle: 2, text: 5 } as const;
+
+export type ScrubberMarker = { time: number; type: 'line' | 'angle' | 'text'; id: string };
+
+export function getScrubberMarkers(state: MarkupState): ScrubberMarker[] {
+  const markers: ScrubberMarker[] = [];
+  for (const l of state.lines) {
+    if (l.timestamp != null) markers.push({ time: l.timestamp, type: 'line', id: l.id });
+  }
+  for (const a of state.angles) {
+    if (a.timestamp != null) markers.push({ time: a.timestamp, type: 'angle', id: a.id });
+  }
+  for (const t of state.texts) {
+    if (t.timestamp != null) markers.push({ time: t.timestamp, type: 'text', id: t.id });
+  }
+  return markers.sort((a, b) => a.time - b.time);
+}
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 9);
@@ -211,14 +242,14 @@ export function useMarkup(): MarkupHandle {
     });
   }, []);
 
-  const updateLine = useCallback((id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width'>>) => {
+  const updateLine = useCallback((id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'displayDuration'>>) => {
     setState((prev) => ({
       ...prev,
       lines: prev.lines.map((l) => (l.id === id ? { ...l, ...updates } : l)),
     }));
   }, []);
 
-  const updateAngle = useCallback((id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number }>) => {
+  const updateAngle = useCallback((id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; displayDuration: number | null }>) => {
     setState((prev) => {
       const angles = prev.angles.map((a) => {
         if (a.id !== id) return a;
@@ -229,6 +260,7 @@ export function useMarkup(): MarkupHandle {
           p2: updates.p2 ?? a.p2,
           ...(updates.color !== undefined && { color: updates.color }),
           ...(updates.width !== undefined && { width: updates.width }),
+          ...(updates.displayDuration !== undefined && { displayDuration: updates.displayDuration }),
         };
         // Prefer caller-supplied angleDeg (computed from visual/pixel coords) for accuracy
         next.angleDeg = updates.angleDeg !== undefined
@@ -240,7 +272,7 @@ export function useMarkup(): MarkupHandle {
     });
   }, []);
 
-  const updateText = useCallback((id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y'>>) => {
+  const updateText = useCallback((id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth' | 'displayDuration'>>) => {
     setState((prev) => ({
       ...prev,
       texts: prev.texts.map((t) => (t.id === id ? { ...t, ...updates } : t)),

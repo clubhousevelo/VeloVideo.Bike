@@ -21,6 +21,23 @@ function activeClass(active: boolean, selected: boolean) {
   return 'border-slate-600/70 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80';
 }
 
+/** Tool colors matching scrubber markers: line=green, angle=amber, text=blue */
+function toolClass(tool: 'line' | 'angle' | 'text', active: boolean, selected: boolean) {
+  if (selected) {
+    if (tool === 'line') return 'bg-green-600/80 border-green-500 text-white';
+    if (tool === 'angle') return 'bg-amber-600/80 border-amber-500 text-white';
+    return 'bg-blue-600/80 border-blue-500 text-white';
+  }
+  if (active) {
+    if (tool === 'line') return 'border-green-500/50 text-green-400 hover:bg-slate-700/80';
+    if (tool === 'angle') return 'border-amber-500/50 text-amber-400 hover:bg-slate-700/80';
+    return 'border-blue-500/50 text-blue-400 hover:bg-slate-700/80';
+  }
+  if (tool === 'line') return 'border-slate-600/70 text-green-500 hover:text-green-400 hover:bg-slate-700/80';
+  if (tool === 'angle') return 'border-slate-600/70 text-amber-500 hover:text-amber-400 hover:bg-slate-700/80';
+  return 'border-slate-600/70 text-blue-500 hover:text-blue-400 hover:bg-slate-700/80';
+}
+
 export default function ToolStrip({
   side,
   active,
@@ -63,7 +80,7 @@ export default function ToolStrip({
       {/* Line */}
       <button
         onClick={() => onActiveChange(active === 'line' ? null : 'line')}
-        className={`${btnClass} ${activeClass(!!lineActive, active === 'line')}`}
+        className={`${btnClass} ${toolClass('line', !!lineActive, active === 'line')}`}
         title="Line"
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
@@ -74,7 +91,7 @@ export default function ToolStrip({
       {/* Angle */}
       <button
         onClick={() => onActiveChange(active === 'angle' ? null : 'angle')}
-        className={`${btnClass} ${activeClass(!!angleActive, active === 'angle')}`}
+        className={`${btnClass} ${toolClass('angle', !!angleActive, active === 'angle')}`}
         title="Angle"
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
@@ -85,10 +102,10 @@ export default function ToolStrip({
       {/* Text */}
       <button
         onClick={() => onActiveChange(active === 'text' ? null : 'text')}
-        className={`${btnClass} ${activeClass(!!textActive, active === 'text')}`}
+        className={`${btnClass} ${toolClass('text', !!textActive, active === 'text')}`}
         title="Text"
       >
-        <span className="text-[11px] font-bold leading-none tracking-tight select-none">Aa</span>
+        <span className="text-[15px] font-bold leading-none tracking-tight select-none">Aa</span>
       </button>
 
       {/* Divider */}

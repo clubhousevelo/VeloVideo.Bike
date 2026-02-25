@@ -3,6 +3,7 @@ import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer'
 import { useRepeatWhilePressed } from '../hooks/useRepeatWhilePressed';
 import { DEFAULT_TRANSFORM } from '../hooks/useVideoPlayer';
 import type { MarkupHandle, GridSettings } from '../hooks/useMarkup';
+import { getScrubberMarkers } from '../hooks/useMarkup';
 import ScrubberWithTrim from './ScrubberWithTrim';
 import TransformPanel from './TransformPanel';
 import MarkupPopupByType from './MarkupPopupByType';
@@ -19,7 +20,7 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
 }
 
-function VideoControls({ label, handle, onRemove }: { label: string; handle: VideoPlayerHandle; onRemove?: () => void }) {
+function VideoControls({ label, handle, markupHandle, onRemove }: { label: string; handle: VideoPlayerHandle; markupHandle?: MarkupHandle; onRemove?: () => void }) {
   const { state, selectFile, clearVideo, togglePlay, scrub, setTrimStart, setTrimEnd, stepFrame } = handle;
   const handleRemove = () => { clearVideo(); onRemove?.(); };
   const repeatBack = useRepeatWhilePressed(() => stepFrame(-1));
@@ -57,39 +58,55 @@ function VideoControls({ label, handle, onRemove }: { label: string; handle: Vid
             onScrub={scrub}
             onTrimStartChange={setTrimStart}
             onTrimEndChange={setTrimEnd}
+            markers={markupHandle ? getScrubberMarkers(markupHandle.state) : []}
             trackHeight="h-4"
           />
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span>{formatTime(Math.max(0, state.currentTime - state.trimStart))}</span>
             <span className="text-slate-500">/ {formatTime(Math.max(0, state.trimEnd - state.trimStart))}</span>
           </div>
-          <div className="flex items-center justify-center gap-3">
-            <button onPointerDown={(e) => repeatBack.onPointerDown(e)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Previous frame (hold to scrub)">
-              <svg className="w-3.5 h-3.5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
-            </button>
-            <button onClick={togglePlay} className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors">
-              {state.isPlaying ? (
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
-              ) : (
-                <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-              )}
-            </button>
-            <button onPointerDown={(e) => repeatFwd.onPointerDown(e)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Next frame (hold to scrub)">
-              <svg className="w-3.5 h-3.5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
-            </button>
+          <div className="flex items-center w-full">
+            <div className="flex-1 min-w-0" />
+            <div className="flex items-center justify-center gap-3 shrink-0">
+              <button onPointerDown={(e) => repeatBack.onPointerDown(e)} className="p-2 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Previous frame (hold to scrub)">
+                <svg className="w-4.5 h-4.5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
+              </button>
+              <button onClick={togglePlay} className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors">
+                {state.isPlaying ? (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+                ) : (
+                  <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                )}
+              </button>
+              <button onPointerDown={(e) => repeatFwd.onPointerDown(e)} className="p-2 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Next frame (hold to scrub)">
+                <svg className="w-4.5 h-4.5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+              <button onClick={selectFile} className="text-xs text-slate-500 hover:text-slate-300 py-0.5 transition-colors">
+                {isImage ? 'Change image' : 'Change video'}
+              </button>
+              <span className="text-slate-700">|</span>
+              <button onClick={handleRemove} className="text-xs text-slate-600 hover:text-red-400 py-0.5 transition-colors">
+                Remove
+              </button>
+            </div>
           </div>
         </>
       )}
-      {isImage && <div className="text-[10px] text-slate-500 py-0.5">Image</div>}
-      <div className="flex items-center justify-center gap-3">
-        <button onClick={selectFile} className="text-[10px] text-slate-500 hover:text-slate-300 py-0.5 transition-colors">
-          {isImage ? 'Change image' : 'Change video'}
-        </button>
-        <span className="text-slate-700 text-[10px]">|</span>
-        <button onClick={handleRemove} className="text-[10px] text-slate-600 hover:text-red-400 py-0.5 transition-colors">
-          Remove
-        </button>
-      </div>
+      {isImage && (
+        <div className="flex items-center justify-end w-full">
+          <div className="flex items-center gap-2">
+            <button onClick={selectFile} className="text-xs text-slate-500 hover:text-slate-300 py-0.5 transition-colors">
+              Change image
+            </button>
+            <span className="text-slate-700">|</span>
+            <button onClick={handleRemove} className="text-xs text-slate-600 hover:text-red-400 py-0.5 transition-colors">
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -179,6 +196,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   // Corrective scale: overlay canvas is wider than a SBS panel, so object-contain
   // renders the video at a larger base size. This factor compensates so that the
   // user's zoom level (e.g. 2×) produces the same visible crop in both modes.
+  // SBS panels have tool strips and bottom controls that reduce the video area;
+  // we account for that so overlay matches SBS framing.
   const correctionScale = useMemo(() => {
     const { w, h } = canvasSize;
     if (w === 0 || h === 0) return 1;
@@ -189,9 +208,12 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     const videoAR = ar1 || ar2;
     if (videoAR <= 0) return 1;
 
-    // object-contain height in a SBS panel (half canvas width)
-    const sbsW = w / 2;
-    const sbsVideoH = sbsW / h > videoAR ? h : sbsW / videoAR;
+    // SBS video area: strip (~36px) and gap reduce width; bottom controls (~70px) reduce height
+    const SBS_STRIP_AND_GAP = 44;
+    const SBS_BOTTOM_CONTROLS = 70;
+    const sbsW = Math.max(10, w / 2 - SBS_STRIP_AND_GAP);
+    const sbsH = Math.max(10, h - SBS_BOTTOM_CONTROLS);
+    const sbsVideoH = sbsW / sbsH > videoAR ? sbsH : sbsW / videoAR;
 
     // object-contain height in the full overlay canvas
     const overlayVideoH = w / h > videoAR ? h : w / videoAR;
@@ -237,21 +259,21 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     <div className="flex flex-col h-full">
       <div className="flex flex-1 min-h-0 gap-2 items-stretch">
         {/* Left strip: V1 tools */}
-        <div ref={stripRef1} className={`relative shrink-0 flex flex-col h-full gap-1 rounded-lg transition-shadow ${activeRing1}`} onClick={onActivate1}>
-          <ToolStrip
-            side="left"
-            active={activePanel1}
-            onActiveChange={setActivePanel1}
-            transformActive={transform1Active}
-            gridActive={grid1Active}
-            lineActive={line1Active}
-            angleActive={angle1Active}
-            textActive={text1Active}
-            markupHidden={markupHandle1.state.hidden}
-            onToggleHidden={() => markupHandle1.setHidden(!markupHandle1.state.hidden)}
-          />
-          <div className="flex-1 min-h-0" />
-          <ActionStrip
+        <div ref={stripRef1} className="relative shrink-0 flex flex-col items-start gap-1" onClick={onActivate1}>
+          <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing1}`}>
+            <ToolStrip
+              side="left"
+              active={activePanel1}
+              onActiveChange={setActivePanel1}
+              transformActive={transform1Active}
+              gridActive={grid1Active}
+              lineActive={line1Active}
+              angleActive={angle1Active}
+              textActive={text1Active}
+              markupHidden={markupHandle1.state.hidden}
+              onToggleHidden={() => markupHandle1.setHidden(!markupHandle1.state.hidden)}
+            />
+            <ActionStrip
             canUndo={markupHandle1.state.undoStack.length > 0}
             canRedo={markupHandle1.state.redoStack.length > 0}
             hasMarkup={hasMarkup1}
@@ -259,6 +281,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             onRedo={markupHandle1.redo}
             onClearAll={markupHandle1.clearAll}
           />
+          </div>
           {activePanel1 && <div className="absolute left-full top-0 ml-1 z-50">{popup1}</div>}
         </div>
 
@@ -297,7 +320,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                 className="absolute inset-0"
                 style={{
                   opacity: blendPosition === 100 ? 0 : 1,
-                  zIndex: activeVideo === 1 ? 10 : 0,
+                  zIndex: blendPosition >= 1 && blendPosition <= 99 ? 0 : activeVideo === 1 ? 10 : 0,
                   pointerEvents: blendPosition === 100 ? 'none' : undefined,
                 }}
               >
@@ -329,6 +352,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   transform={t1}
                   videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
                   correctionScale={correctionScale}
+                  currentTime={handle1.state.currentTime}
                 />
               </div>
             )}
@@ -338,8 +362,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                 className="absolute inset-0"
                 style={{
                   opacity: blendPosition === 0 ? 0 : blendPosition === 100 ? 0.9999 : opacity2,
-                  zIndex: activeVideo === 2 ? 10 : 0,
-                  pointerEvents: blendPosition === 0 ? 'none' : undefined,
+                  zIndex: blendPosition >= 1 ? 10 : 0,
+                  pointerEvents: blendPosition === 0 ? 'none' : (blendPosition >= 1 && blendPosition <= 99 && activeVideo === 1 ? 'none' : undefined),
                 }}
               >
                 {handle2.state.mediaType === 'image' ? (
@@ -370,6 +394,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   transform={t2}
                   videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
                   correctionScale={correctionScale}
+                  currentTime={handle2.state.currentTime}
                 />
               </div>
             )}
@@ -447,28 +472,29 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
         </div>
 
         {/* Right strip: V2 tools */}
-        <div ref={stripRef2} className={`relative shrink-0 flex flex-col h-full gap-1 rounded-lg transition-shadow ${activeRing2}`} onClick={onActivate2}>
-          <ToolStrip
-            side="right"
-            active={activePanel2}
-            onActiveChange={setActivePanel2}
-            transformActive={transform2Active}
-            gridActive={grid2Active}
-            lineActive={line2Active}
-            angleActive={angle2Active}
-            textActive={text2Active}
-            markupHidden={markupHandle2.state.hidden}
-            onToggleHidden={() => markupHandle2.setHidden(!markupHandle2.state.hidden)}
-          />
-          <div className="flex-1 min-h-0" />
-          <ActionStrip
-            canUndo={markupHandle2.state.undoStack.length > 0}
-            canRedo={markupHandle2.state.redoStack.length > 0}
-            hasMarkup={hasMarkup2}
-            onUndo={markupHandle2.undo}
-            onRedo={markupHandle2.redo}
-            onClearAll={markupHandle2.clearAll}
-          />
+        <div ref={stripRef2} className="relative shrink-0 flex flex-col items-start gap-1" onClick={onActivate2}>
+          <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing2}`}>
+            <ToolStrip
+              side="right"
+              active={activePanel2}
+              onActiveChange={setActivePanel2}
+              transformActive={transform2Active}
+              gridActive={grid2Active}
+              lineActive={line2Active}
+              angleActive={angle2Active}
+              textActive={text2Active}
+              markupHidden={markupHandle2.state.hidden}
+              onToggleHidden={() => markupHandle2.setHidden(!markupHandle2.state.hidden)}
+            />
+            <ActionStrip
+              canUndo={markupHandle2.state.undoStack.length > 0}
+              canRedo={markupHandle2.state.redoStack.length > 0}
+              hasMarkup={hasMarkup2}
+              onUndo={markupHandle2.undo}
+              onRedo={markupHandle2.redo}
+              onClearAll={markupHandle2.clearAll}
+            />
+          </div>
           {activePanel2 && <div className="absolute right-full top-0 mr-1 z-50">{popup2}</div>}
         </div>
       </div>
@@ -492,8 +518,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
       </div>
 
       <div className="mt-2 shrink-0 grid grid-cols-2 gap-4">
-        <VideoControls label="Video 1" handle={handle1} onRemove={onRemoveVideo1} />
-        <VideoControls label="Video 2" handle={handle2} onRemove={onRemoveVideo2} />
+        <VideoControls label="Video 1" handle={handle1} markupHandle={markupHandle1} onRemove={onRemoveVideo1} />
+        <VideoControls label="Video 2" handle={handle2} markupHandle={markupHandle2} onRemove={onRemoveVideo2} />
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { MarkupHandle, GridSettings } from '../hooks/useMarkup';
+import { DEFAULT_DISPLAY_DURATION } from '../hooks/useMarkup';
 
 interface MarkupPopupByTypeProps {
   markup: MarkupHandle;
@@ -14,6 +15,51 @@ const panelClass = 'min-w-[240px] max-h-[min(65vh,480px)] overflow-y-auto bg-sla
 const sectionLabel = 'text-[9px] text-slate-500 uppercase tracking-wider font-semibold';
 
 const PRESET_COLORS = ['#ffff00', '#ff4444', '#ff8800', '#00ff88', '#00ccff', '#ffffff'];
+
+function DisplayDurationRow({
+  value,
+  onChange,
+  defaultSeconds,
+  label = 'Display duration',
+}: {
+  value: number | null | undefined;
+  onChange: (v: number | null) => void;
+  defaultSeconds: number | null;
+  label?: string;
+}) {
+  const isInfinite = value === null || value === undefined;
+  const numVal = isInfinite ? (defaultSeconds ?? 2) : value;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[9px] text-slate-500">{label}</span>
+        <label className="flex items-center gap-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isInfinite}
+            onChange={(e) => onChange(e.target.checked ? null : (defaultSeconds ?? 2))}
+            className="accent-blue-500 cursor-pointer"
+          />
+          <span className="text-[9px] text-slate-400">Until end (∞)</span>
+        </label>
+      </div>
+      {!isInfinite && (
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={0.1}
+            max={60}
+            step={0.1}
+            value={numVal}
+            onChange={(e) => onChange(parseFloat(e.target.value))}
+            className="flex-1"
+          />
+          <span className="text-[9px] text-slate-300 w-12 text-right">{numVal.toFixed(1)}s</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ColorRow({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   return (
@@ -133,6 +179,11 @@ export default function MarkupPopupByType({ markup, type, updateGridOverride, sy
                 <input type="checkbox" checked={!!selLine.showAngle} onChange={(e) => updateLine(selLine.id, { showAngle: e.target.checked })} className="accent-blue-500 cursor-pointer" />
               </label>
             </div>
+            <DisplayDurationRow
+              value={selLine.displayDuration}
+              onChange={(v) => updateLine(selLine.id, { displayDuration: v })}
+              defaultSeconds={DEFAULT_DISPLAY_DURATION.line}
+            />
           </div>
         )}
         {state.lines.length > 0 && (
@@ -170,6 +221,11 @@ export default function MarkupPopupByType({ markup, type, updateGridOverride, sy
               <input type="range" min={1} max={8} step={1} value={selAngle.width ?? 2} onChange={(e) => updateAngle(selAngle.id, { width: parseInt(e.target.value) })} className="flex-1" />
               <span className="text-[9px] text-slate-300 w-5">{selAngle.width ?? 2}px</span>
             </div>
+            <DisplayDurationRow
+              value={selAngle.displayDuration}
+              onChange={(v) => updateAngle(selAngle.id, { displayDuration: v })}
+              defaultSeconds={DEFAULT_DISPLAY_DURATION.angle}
+            />
           </div>
         )}
         {state.angles.length > 0 && (
@@ -216,6 +272,11 @@ export default function MarkupPopupByType({ markup, type, updateGridOverride, sy
             <input type="color" value={selText.backgroundColor || '#000000'} onChange={(e) => updateText(selText.id, { backgroundColor: e.target.value || undefined })} className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent" title="Background color" />
             <button type="button" onClick={() => updateText(selText.id, { backgroundColor: undefined })} className="text-[9px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded border border-slate-600">None</button>
           </div>
+          <DisplayDurationRow
+            value={selText.displayDuration}
+            onChange={(v) => updateText(selText.id, { displayDuration: v })}
+            defaultSeconds={DEFAULT_DISPLAY_DURATION.text}
+          />
           <p className="text-[8px] text-slate-500">Drag the <span className="text-slate-300">⊣ handle</span> on the right edge of the text to set wrap width.</p>
         </div>
       )}
