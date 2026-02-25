@@ -311,7 +311,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
         <div
           ref={canvasRef}
           className="relative flex-1 min-h-0 rounded-lg overflow-hidden"
-          style={{ backgroundColor: handle1.state.src ? undefined : '#808080' }}
+          style={{ backgroundColor: handle1.state.src || handle2.state.src ? undefined : '#000000' }}
           onDragOver={(e) => {
             e.preventDefault();
             if (e.dataTransfer.types.includes('Files')) {

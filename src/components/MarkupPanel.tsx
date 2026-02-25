@@ -160,7 +160,7 @@ export default function MarkupPanel({ markup, compact = false, direction = 'up',
                 onClick={() => setSelected({ type: 'line', id: l.id })}
                 className={`flex items-center justify-between gap-1 px-2 py-1 rounded text-xs cursor-pointer ${state.selected?.type === 'line' && state.selected.id === l.id ? 'bg-blue-600/40 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'}`}
               >
-                <span>Line</span>
+                <span>{l.referenceLength != null ? `Ref ${l.referenceLength} ${l.unit ?? ''}` : l.isMeasurement ? 'Measure' : 'Line'}</span>
                 <button onClick={(e) => { e.stopPropagation(); removeItem('line', l.id); }} className="p-0.5 text-slate-400 hover:text-red-400" title="Delete">×</button>
               </div>
             ))}

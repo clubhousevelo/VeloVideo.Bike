@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-export type MarkupTool = 'none' | 'line' | 'angle' | 'text';
+export type MarkupTool = 'none' | 'line' | 'angle' | 'text' | 'measure';
 
 export interface GridSettings {
   show: boolean;
@@ -26,6 +26,12 @@ export interface MarkupLine {
   timestamp?: number;
   /** Seconds to display; null = infinite. Default: infinite for lines. */
   displayDuration?: number | null;
+  /** Measure tool: known real-world length for this reference line (e.g. wheelbase in mm) */
+  referenceLength?: number;
+  /** Measure tool: unit for referenceLength (e.g. "mm", "in") */
+  unit?: string;
+  /** Measure tool: when true, this line shows scaled length based on reference */
+  isMeasurement?: boolean;
 }
 
 export interface MarkupAngle {
@@ -94,7 +100,7 @@ export interface MarkupHandle {
   addLine: (line: Omit<MarkupLine, 'id'>) => void;
   addAngle: (angle: Omit<MarkupAngle, 'id'>) => void;
   addText: (text: Omit<MarkupText, 'id'>) => void;
-  updateLine: (id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'displayDuration'>>) => void;
+  updateLine: (id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'displayDuration' | 'referenceLength' | 'unit' | 'isMeasurement'>>) => void;
   updateAngle: (id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; displayDuration: number | null }>) => void;
   updateText: (id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth' | 'displayDuration'>>) => void;
   removeItem: (type: 'line' | 'angle' | 'text', id: string) => void;

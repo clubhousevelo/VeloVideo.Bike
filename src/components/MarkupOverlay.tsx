@@ -21,6 +21,7 @@ import type { MarkupHandle, Point } from '../hooks/useMarkup';
 import { DEFAULT_DISPLAY_DURATION } from '../hooks/useMarkup';
 import type { VideoTransform } from '../hooks/useVideoPlayer';
 import { calcAngleDeg } from '../hooks/useMarkup';
+import PointMagnifier from './PointMagnifier';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,8 @@ interface MarkupOverlayProps {
   currentTime?: number;
   /** Called when user double-clicks a markup item. Opens the corresponding tool panel. */
   onOpenToolPanel?: (type: 'line' | 'angle' | 'text') => void;
+  /** Video or image element for the magnifier. When not provided, the magnifier will try to find it from the DOM. */
+  mediaEl?: HTMLVideoElement | HTMLImageElement | null;
 }
 
 type DragState =
@@ -170,14 +173,20 @@ function isMarkupVisible(
   return currentTime <= t + dur;
 }
 
-export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1, currentTime = 0, onOpenToolPanel }: MarkupOverlayProps) {
+export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1, currentTime = 0, onOpenToolPanel, mediaEl: mediaElProp }: MarkupOverlayProps) {
   const { state, addLine, addAngle, addText, updateLine, updateAngle, updateText, setSelected, setTool, snapshotForUndo, removeItem } = handle;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [mediaElFromDom, setMediaElFromDom] = useState<HTMLVideoElement | HTMLImageElement | null>(null);
+  const mediaEl = mediaElProp ?? mediaElFromDom;
   const [svgSize, setSvgSize] = useState({ width: 400, height: 300 });
   const [pendingPoints, setPendingPoints] = useState<Point[]>([]); // normalized
   const [hoverPoint, setHoverPoint] = useState<Point | null>(null); // normalized
+  const [cursorViewBox, setCursorViewBox] = useState<Point>({ x: 0, y: 0 }); // viewBox coords for magnifier
   const [editingText, setEditingText] = useState<{ id: string; normX: number; normY: number; value: string } | null>(null);
+  const [pendingReferenceLineId, setPendingReferenceLineId] = useState<string | null>(null);
+  const [pendingReferenceInput, setPendingReferenceInput] = useState({ value: '', unit: 'mm' });
+  const pendingReferenceRef = useRef(false);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [shiftKey, setShiftKey] = useState(false);
 
@@ -192,11 +201,44 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
     return () => ro.disconnect();
   }, []);
 
+  // Resolve media element from DOM when not passed as prop
+  useEffect(() => {
+    if (mediaElProp != null) return;
+    const el = containerRef.current?.parentElement;
+    if (!el) return;
+    const media = el.querySelector('video, img') as HTMLVideoElement | HTMLImageElement | null;
+    setMediaElFromDom(media);
+    const mo = new MutationObserver(() => {
+      const m = el.querySelector('video, img') as HTMLVideoElement | HTMLImageElement | null;
+      setMediaElFromDom(m);
+    });
+    mo.observe(el, { childList: true, subtree: true });
+    return () => mo.disconnect();
+  }, [mediaElProp]);
+
   useEffect(() => {
     setPendingPoints([]);
     setHoverPoint(null);
     setEditingText(null);
+    setPendingReferenceLineId(null);
   }, [state.tool]);
+
+  // When we add a line for measure reference, capture its id once state updates
+  useEffect(() => {
+    if (pendingReferenceRef.current && state.lines.length > 0) {
+      pendingReferenceRef.current = false;
+      const last = state.lines[state.lines.length - 1];
+      if (last.referenceLength == null) setPendingReferenceLineId(last.id);
+    }
+  }, [state.lines]);
+
+  // Clear pending reference input if the line was deleted
+  useEffect(() => {
+    if (pendingReferenceLineId && !state.lines.some((l) => l.id === pendingReferenceLineId)) {
+      setPendingReferenceLineId(null);
+      setPendingReferenceInput({ value: '', unit: 'mm' });
+    }
+  }, [pendingReferenceLineId, state.lines]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -206,6 +248,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       if (e.key === 'Escape') {
         setPendingPoints([]);
         setEditingText(null);
+        setPendingReferenceLineId(null);
         setDrag(null);
         if (state.tool !== 'none') setTool('none');
         return;
@@ -220,11 +263,14 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.key === 'Shift') setShiftKey(false);
     };
+    const onBlur = () => setShiftKey(false);
     window.addEventListener('keydown', onKey);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, [state.selected, state.tool, removeItem, setTool]);
 
@@ -245,12 +291,17 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
   const vis = useCallback((nx: number, ny: number) => toVisual(nx, ny, vBox, W, H, transform), [vBox, W, H, transform]);
   const norm = useCallback((cx: number, cy: number) => toNormalized(cx, cy, vBox, W, H, transform), [vBox, W, H, transform]);
 
-  // Get raw canvas-space mouse position from the SVG (no transform on SVG element itself)
+  // Get canvas (viewBox) coordinates from mouse event
   const getCanvasPoint = useCallback((e: React.MouseEvent): Point => {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
-    const rect = svg.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const svgPt = pt.matrixTransform(ctm.inverse());
+    return { x: svgPt.x, y: svgPt.y };
   }, []);
 
   // Hit test against visual (canvas) positions of visible stored items
@@ -283,7 +334,9 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
   }, [state.lines, state.angles, state.texts, vis, currentTime]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    setShiftKey(e.shiftKey);
     const canvasPt = getCanvasPoint(e);
+    if (drag?.kind === 'ep-line' || drag?.kind === 'ep-angle') setCursorViewBox(canvasPt);
     if (drag) {
       e.preventDefault();
       if (drag.kind === 'ep-line') {
@@ -335,7 +388,10 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       }
       return;
     }
-    if (state.tool !== 'none') setHoverPoint(norm(canvasPt.x, canvasPt.y));
+    if (state.tool !== 'none') {
+      setHoverPoint(norm(canvasPt.x, canvasPt.y));
+      setCursorViewBox(canvasPt);
+    }
   }, [drag, state.angles, vis, getCanvasPoint, norm, transform.scale, vBox.w, vBox.h, updateLine, updateAngle, updateText, state.tool]);
 
   const handleMouseLeave = useCallback(() => { setHoverPoint(null); }, []);
@@ -403,6 +459,27 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         setPendingPoints([]);
         setTool('none');
       }
+    } else if (state.tool === 'measure') {
+      const hasReference = state.lines.some((l) => l.referenceLength != null);
+      if (pendingPoints.length === 0) {
+        setPendingPoints([n]);
+      } else {
+        const p2 = e.shiftKey ? snapLineSecondPoint(pendingPoints[0], n, vis, norm) : n;
+        const newLine = {
+          x1: pendingPoints[0].x, y1: pendingPoints[0].y, x2: p2.x, y2: p2.y,
+          color: state.activeColor, width: state.lineWidth,
+          timestamp: currentTime, displayDuration: DEFAULT_DISPLAY_DURATION.line,
+        };
+        if (!hasReference) {
+          pendingReferenceRef.current = true;
+          addLine(newLine);
+          setPendingPoints([]);
+        } else {
+          addLine({ ...newLine, isMeasurement: true });
+          setPendingPoints([]);
+          setTool('none');
+        }
+      }
     } else if (state.tool === 'angle') {
       const snapped = e.shiftKey && pendingPoints.length >= 1
         ? snapLineSecondPoint(pendingPoints[pendingPoints.length - 1], n, vis, norm)
@@ -423,7 +500,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
     } else if (state.tool === 'text') {
       setEditingText({ id: '', normX: n.x, normY: n.y, value: '' });
     }
-  }, [state.tool, state.selected, state.activeColor, state.lineWidth, pendingPoints, addLine, addAngle, setTool, setSelected, getCanvasPoint, norm, vis, currentTime]);
+  }, [state.tool, state.selected, state.activeColor, state.lineWidth, state.lines, pendingPoints, addLine, addAngle, setTool, setSelected, getCanvasPoint, norm, vis, currentTime]);
 
   const commitText = useCallback(() => {
     if (editingText) {
@@ -441,16 +518,31 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
     setEditingText(null);
   }, [editingText, addText, updateText, setTool, state.textSize, state.activeColor, currentTime]);
 
-  const startEpLineDrag = useCallback((id: string, pointIndex: 0 | 1) => (e: React.MouseEvent) => {
+  const commitReferenceLength = useCallback(() => {
+    if (!pendingReferenceLineId) return;
+    const num = parseFloat(pendingReferenceInput.value.replace(/,/g, ''));
+    if (Number.isFinite(num) && num > 0) {
+      updateLine(pendingReferenceLineId, {
+        referenceLength: num,
+        unit: pendingReferenceInput.unit || 'mm',
+      });
+    }
+    setPendingReferenceLineId(null);
+    setPendingReferenceInput({ value: '', unit: 'mm' });
+  }, [pendingReferenceLineId, pendingReferenceInput, updateLine]);
+
+  const startEpLineDrag = useCallback((id: string, pointIndex: 0 | 1) => (e: React.PointerEvent) => {
     e.stopPropagation();
     snapshotForUndo();
     setDrag({ kind: 'ep-line', id, pointIndex });
+    containerRef.current?.setPointerCapture?.(e.pointerId);
   }, [snapshotForUndo]);
 
-  const startEpAngleDrag = useCallback((id: string, pointIndex: 0 | 1 | 2) => (e: React.MouseEvent) => {
+  const startEpAngleDrag = useCallback((id: string, pointIndex: 0 | 1 | 2) => (e: React.PointerEvent) => {
     e.stopPropagation();
     snapshotForUndo();
     setDrag({ kind: 'ep-angle', id, pointIndex });
+    containerRef.current?.setPointerCapture?.(e.pointerId);
   }, [snapshotForUndo]);
 
   useEffect(() => {
@@ -492,6 +584,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       ref={containerRef}
       className="absolute inset-0"
       style={{ pointerEvents: isToolActive || hasContent ? 'all' : 'none' }}
+      onPointerMove={handleMouseMove as React.PointerEventHandler}
     >
       <svg
         ref={svgRef}
@@ -499,7 +592,6 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         height="100%"
         viewBox={`0 0 ${W} ${H}`}
         className={isToolActive ? 'cursor-crosshair' : isDragging ? 'cursor-grabbing' : ''}
-        onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onMouseDown={handleMouseDown}
         onClick={handleClick}
@@ -518,24 +610,40 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
           const len = Math.hypot(dx, dy);
           // Acute angle with horizontal: 0–90°
           let lineAngleDeg: number | null = null;
+          let lineRotationDeg = len > 1e-6 ? (Math.atan2(dy, dx) * 180) / Math.PI : 0;
+          if (lineRotationDeg > 90 || lineRotationDeg < -90) lineRotationDeg += 180;
           if (line.showAngle && len > 1e-6) {
             let deg = (Math.atan2(Math.abs(dy), Math.abs(dx)) * 180) / Math.PI;
             if (deg > 90) deg = 180 - deg;
             lineAngleDeg = deg;
           }
+          const refLine = state.lines.find((l) => l.referenceLength != null);
+          const refPx = refLine ? Math.hypot(vis(refLine.x2, refLine.y2).x - vis(refLine.x1, refLine.y1).x, vis(refLine.x2, refLine.y2).y - vis(refLine.x1, refLine.y1).y) : 0;
+          const measureScale = refLine && refPx > 1e-6 ? refLine.referenceLength! / refPx : null;
+          const measureLabel = line.referenceLength != null
+            ? `${line.referenceLength} ${line.unit ?? ''}`
+            : line.isMeasurement && measureScale != null
+              ? `${(len * measureScale).toFixed(1)} ${refLine?.unit ?? ''}`
+              : null;
+          const textY = mid.y - 10;
           return (
             <g key={line.id}>
               <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="transparent" strokeWidth={16} style={{ cursor: 'grab' }} />
               <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={line.color} strokeWidth={line.width} strokeLinecap="round" style={{ filter: dropShadow, pointerEvents: 'none' }} />
               {lineAngleDeg != null && (
-                <text x={mid.x} y={mid.y - 10} fill={line.color} fontSize={12} fontWeight="600" textAnchor="middle" dominantBaseline="middle" style={{ filter: dropShadow, userSelect: 'none', pointerEvents: 'none' }}>
+                <text x={mid.x} y={textY} fill={line.color} fontSize={12} fontWeight="600" textAnchor="middle" dominantBaseline="middle" transform={`rotate(${lineRotationDeg}, ${mid.x}, ${textY})`} style={{ filter: dropShadow, userSelect: 'none', pointerEvents: 'none' }}>
                   {lineAngleDeg.toFixed(1)}°
+                </text>
+              )}
+              {measureLabel != null && (
+                <text x={mid.x} y={textY - (lineAngleDeg != null ? 14 : 0)} fill={line.color} fontSize={12} fontWeight="600" textAnchor="middle" dominantBaseline="middle" transform={`rotate(${lineRotationDeg}, ${mid.x}, ${textY - (lineAngleDeg != null ? 14 : 0)})`} style={{ filter: dropShadow, userSelect: 'none', pointerEvents: 'none' }}>
+                  {measureLabel}
                 </text>
               )}
               {isSel && (
                 <>
-                  <circle cx={p1.x} cy={p1.y} r={HANDLE_R} fill="white" stroke={line.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onMouseDown={startEpLineDrag(line.id, 0)} />
-                  <circle cx={p2.x} cy={p2.y} r={HANDLE_R} fill="white" stroke={line.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onMouseDown={startEpLineDrag(line.id, 1)} />
+                  <circle cx={p1.x} cy={p1.y} r={HANDLE_R} fill="white" stroke={line.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpLineDrag(line.id, 0)} />
+                  <circle cx={p2.x} cy={p2.y} r={HANDLE_R} fill="white" stroke={line.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpLineDrag(line.id, 1)} />
                 </>
               )}
             </g>
@@ -563,7 +671,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
               {isSel ? (
                 <>
                   {([{ p: vp1, i: 0 }, { p: vvx, i: 1 }, { p: vp2, i: 2 }] as const).map(({ p, i }) => (
-                    <circle key={i} cx={p.x} cy={p.y} r={HANDLE_R} fill="white" stroke={angle.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onMouseDown={startEpAngleDrag(angle.id, i)} />
+                    <circle key={i} cx={p.x} cy={p.y} r={HANDLE_R} fill="white" stroke={angle.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpAngleDrag(angle.id, i)} />
                   ))}
                 </>
               ) : (
@@ -696,7 +804,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         })}
 
         {/* In-progress drawing previews */}
-        {state.tool === 'line' && pendingPoints.length === 1 && (() => {
+        {(state.tool === 'line' || state.tool === 'measure') && pendingPoints.length === 1 && (() => {
           const p0 = vis(pendingPoints[0].x, pendingPoints[0].y);
           const endNorm = hoverPoint && shiftKey ? snapLineSecondPoint(pendingPoints[0], hoverPoint, vis, norm) : hoverPoint;
           const endVis = endNorm ? vis(endNorm.x, endNorm.y) : null;
@@ -748,6 +856,20 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         })()}
       </svg>
 
+      {/* Zoomed magnifier for precise point selection when placing or editing line/angle/measure points */}
+      {((state.tool === 'line' || state.tool === 'angle' || state.tool === 'measure') || drag?.kind === 'ep-line' || drag?.kind === 'ep-angle') &&
+        mediaEl && (
+        <PointMagnifier
+          cursorX={cursorViewBox.x}
+          cursorY={cursorViewBox.y}
+          W={W}
+          H={H}
+          vBox={vBox}
+          transform={transform}
+          mediaEl={mediaEl}
+        />
+      )}
+
       {editingText && (() => {
         const textSize = editingText.id
           ? (state.texts.find((t) => t.id === editingText.id)?.size ?? state.textSize)
@@ -776,6 +898,50 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
               fontFamily: 'sans-serif',
             }}
           />
+        );
+      })()}
+
+      {/* Reference length input for measure tool */}
+      {pendingReferenceLineId && (() => {
+        const line = state.lines.find((l) => l.id === pendingReferenceLineId);
+        if (!line) return null;
+        const mid = vis((line.x1 + line.x2) / 2, (line.y1 + line.y2) / 2);
+        return (
+          <div
+            className="absolute flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/95 border border-cyan-500/60 shadow-lg"
+            style={{ left: mid.x - 100, top: mid.y - 50, minWidth: 200 }}
+          >
+            <span className="text-xs text-slate-300 whitespace-nowrap">Known length:</span>
+            <input
+              autoFocus
+              type="text"
+              inputMode="decimal"
+              placeholder="e.g. 1000"
+              value={pendingReferenceInput.value}
+              onChange={(e) => setPendingReferenceInput((p) => ({ ...p, value: e.target.value }))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitReferenceLength();
+                if (e.key === 'Escape') { setPendingReferenceLineId(null); setPendingReferenceInput({ value: '', unit: 'mm' }); }
+              }}
+              className="flex-1 min-w-0 px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white placeholder-slate-500 focus:border-cyan-500 focus:outline-none"
+            />
+            <select
+              value={pendingReferenceInput.unit}
+              onChange={(e) => setPendingReferenceInput((p) => ({ ...p, unit: e.target.value }))}
+              className="px-2 py-1 text-sm bg-slate-800 border border-slate-600 rounded text-white focus:border-cyan-500 focus:outline-none"
+            >
+              <option value="mm">mm</option>
+              <option value="cm">cm</option>
+              <option value="in">in</option>
+              <option value="ft">ft</option>
+            </select>
+            <button
+              onClick={commitReferenceLength}
+              className="px-2 py-1 text-xs font-medium rounded bg-cyan-600 hover:bg-cyan-500 text-white"
+            >
+              Set
+            </button>
+          </div>
         );
       })()}
     </div>

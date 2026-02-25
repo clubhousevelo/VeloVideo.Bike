@@ -96,7 +96,7 @@ export default function MarkupPopupByType({ markup, type, updateGridOverride, sy
   // Activate drawing tool when popup opens; reset on close/unmount
   useEffect(() => {
     if (type === 'grid') setTool('none');
-    else setTool(type);
+    else setTool(type as 'line' | 'angle' | 'text');
     return () => { setTool('none'); };
   }, [type, setTool]);
 
