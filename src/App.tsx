@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import VideoPlayer from './components/VideoPlayer';
 import OverlayView from './components/OverlayView';
 import { useVideoPlayer } from './hooks/useVideoPlayer';
-import type { VideoTransform } from './hooks/useVideoPlayer';
+import type { VideoTransform, ImageAdjust } from './hooks/useVideoPlayer';
 import { useMarkup, type GridSettings } from './hooks/useMarkup';
 import { getPersistedVideos, setPersistedVideo, removePersistedVideo } from './lib/persistence';
 import { isMediaFile } from './lib/videoFile';
@@ -20,11 +20,14 @@ export default function App() {
   const saveTimeout1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimeout2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stepRepeatRef = useRef<{ timeout: ReturnType<typeof setTimeout>; interval: ReturnType<typeof setInterval> | null } | null>(null);
+  const zHeldRef = useRef(false);
+  const xHeldRef = useRef(false);
 
   const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
   const [globalRate, setGlobalRate] = useState(1);
   const [hydrated, setHydrated] = useState(false);
   const [syncTransform, setSyncTransform] = useState(false);
+  const [syncImageAdjust, setSyncImageAdjust] = useState(false);
   const [syncGrid, setSyncGrid] = useState(false);
   const [activeVideo, setActiveVideo] = useState<1 | 2>(1);
 
@@ -62,6 +65,34 @@ export default function App() {
     handle2.resetTransform();
     if (syncTransform) handle1.resetTransform();
   }, [syncTransform, handle1, handle2]);
+
+  const handleSyncImageAdjustToggle = useCallback((enabled: boolean, source: ImageAdjust) => {
+    setSyncImageAdjust(enabled);
+    if (enabled) {
+      handle1.setImageAdjust(source);
+      handle2.setImageAdjust(source);
+    }
+  }, [handle1, handle2]);
+
+  const setImageAdjust1 = useCallback((a: Partial<ImageAdjust>) => {
+    handle1.setImageAdjust(a);
+    if (syncImageAdjust) handle2.setImageAdjust(a);
+  }, [syncImageAdjust, handle1, handle2]);
+
+  const setImageAdjust2 = useCallback((a: Partial<ImageAdjust>) => {
+    handle2.setImageAdjust(a);
+    if (syncImageAdjust) handle1.setImageAdjust(a);
+  }, [syncImageAdjust, handle1, handle2]);
+
+  const resetImageAdjust1 = useCallback(() => {
+    handle1.resetImageAdjust();
+    if (syncImageAdjust) handle2.resetImageAdjust();
+  }, [syncImageAdjust, handle1, handle2]);
+
+  const resetImageAdjust2 = useCallback(() => {
+    handle2.resetImageAdjust();
+    if (syncImageAdjust) handle1.resetImageAdjust();
+  }, [syncImageAdjust, handle1, handle2]);
 
   // Sync Grid: when enabled, copy initiating video's grid to the other; changes propagate both ways
   const handleSyncGridToggle = useCallback((enabled: boolean, source: GridSettings) => {
@@ -144,6 +175,7 @@ export default function App() {
             currentTime: handle1.state.currentTime,
             playbackRate: handle1.state.playbackRate,
             transform: handle1.state.transform,
+            imageAdjust: handle1.state.imageAdjust,
             markup: {
               lines: markup1.state.lines,
               angles: markup1.state.angles,
@@ -169,6 +201,7 @@ export default function App() {
     handle1.state.transform.scale,
     handle1.state.transform.translateX,
     handle1.state.transform.translateY,
+    handle1.state.imageAdjust,
     markup1.state.lines,
     markup1.state.angles,
     markup1.state.texts,
@@ -194,6 +227,7 @@ export default function App() {
             currentTime: handle2.state.currentTime,
             playbackRate: handle2.state.playbackRate,
             transform: handle2.state.transform,
+            imageAdjust: handle2.state.imageAdjust,
             markup: {
               lines: markup2.state.lines,
               angles: markup2.state.angles,
@@ -219,6 +253,7 @@ export default function App() {
     handle2.state.transform.scale,
     handle2.state.transform.translateX,
     handle2.state.transform.translateY,
+    handle2.state.imageAdjust,
     markup2.state.lines,
     markup2.state.angles,
     markup2.state.texts,
@@ -273,7 +308,50 @@ export default function App() {
       if (e.key === '1') { setActiveVideo(1); return; }
       if (e.key === '2') { setActiveVideo(2); return; }
 
+      // View mode: S = Side by Side, O = Overlay
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        setViewMode('side-by-side');
+        return;
+      }
+      if (e.key === 'o' || e.key === 'O') {
+        e.preventDefault();
+        setViewMode('overlay');
+        return;
+      }
+
+      // Track Z and X for transform hotkeys
+      if (e.key === 'z' || e.key === 'Z') zHeldRef.current = true;
+      if (e.key === 'x' || e.key === 'X') xHeldRef.current = true;
+
       if (!hasAnyVideo) return;
+
+      // Transform: Z+Arrow = scale, X+Arrow = translate (active video only)
+      const scaleStep = 0.1;
+      const translateStep = 20;
+      const setActiveTransform = activeVideo === 1 ? setTransform1 : setTransform2;
+      const activeTransform = activeVideo === 1 ? handle1.state.transform : handle2.state.transform;
+
+      if (zHeldRef.current && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+        e.preventDefault();
+        const delta = e.code === 'ArrowUp' ? scaleStep : -scaleStep;
+        const next = Math.max(0.25, Math.min(4, activeTransform.scale + delta));
+        setActiveTransform({ scale: next });
+        return;
+      }
+      if (xHeldRef.current && (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+        e.preventDefault();
+        let dx = 0;
+        let dy = 0;
+        if (e.code === 'ArrowLeft') dx = -translateStep;
+        if (e.code === 'ArrowRight') dx = translateStep;
+        if (e.code === 'ArrowUp') dy = translateStep;
+        if (e.code === 'ArrowDown') dy = -translateStep;
+        const nextX = Math.max(-500, Math.min(500, activeTransform.translateX + dx));
+        const nextY = Math.max(-500, Math.min(500, activeTransform.translateY + dy));
+        setActiveTransform({ translateX: nextX, translateY: nextY });
+        return;
+      }
 
       // Playback
       if (e.code === 'Space') {
@@ -353,6 +431,8 @@ export default function App() {
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'z' || e.key === 'Z') zHeldRef.current = false;
+      if (e.key === 'x' || e.key === 'X') xHeldRef.current = false;
       if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
         if (stepRepeatRef.current) {
           clearTimeout(stepRepeatRef.current.timeout);
@@ -367,7 +447,7 @@ export default function App() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [hasAnyVideo, globalTogglePlay, handle1, handle2, activeVideo, markup1, markup2]);
+  }, [hasAnyVideo, globalTogglePlay, handle1, handle2, activeVideo, markup1, markup2, setTransform1, setTransform2]);
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -436,32 +516,38 @@ export default function App() {
 
             {/* View mode toggle */}
             <div className="flex items-center bg-slate-800/60 rounded-lg p-1">
-              <button
-                onClick={() => setViewMode('side-by-side')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                  viewMode === 'side-by-side'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15A2.25 2.25 0 0 0 2.25 6.75v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
-                </svg>
-                Side by Side
-              </button>
-              <button
-                onClick={() => setViewMode('overlay')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                  viewMode === 'overlay'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L12 12.75l-5.571-3m11.142 0 4.179 2.25L12 17.25l-9.75-5.25 4.179-2.25m11.142 0 4.179 2.25L12 21.75l-9.75-5.25 4.179-2.25" />
-                </svg>
-                Overlay
-              </button>
+              <div data-tooltip-side="bottom">
+                <button
+                  onClick={() => setViewMode('side-by-side')}
+                  data-tooltip="Hotkey: S"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    viewMode === 'side-by-side'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15A2.25 2.25 0 0 0 2.25 6.75v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
+                  </svg>
+                  Side by Side
+                </button>
+              </div>
+              <div data-tooltip-side="bottom">
+                <button
+                  onClick={() => setViewMode('overlay')}
+                  data-tooltip="Hotkey: O"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    viewMode === 'overlay'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L12 12.75l-5.571-3m11.142 0 4.179 2.25L12 17.25l-9.75-5.25 4.179-2.25m11.142 0 4.179 2.25L12 21.75l-9.75-5.25 4.179-2.25" />
+                  </svg>
+                  Overlay
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -485,6 +571,10 @@ export default function App() {
                 onTransformReset={resetTransform1}
                 syncTransform={syncTransform}
                 onSyncToggle={handleSyncToggle}
+                onImageAdjustChange={setImageAdjust1}
+                onImageAdjustReset={resetImageAdjust1}
+                syncImageAdjust={syncImageAdjust}
+                onSyncImageAdjustToggle={handleSyncImageAdjustToggle}
                 syncGrid={syncGrid}
                 onSyncGridToggle={handleSyncGridToggle}
                 updateGridOverride={updateGrid1}
@@ -502,6 +592,10 @@ export default function App() {
                 onTransformReset={resetTransform2}
                 syncTransform={syncTransform}
                 onSyncToggle={handleSyncToggle}
+                onImageAdjustChange={setImageAdjust2}
+                onImageAdjustReset={resetImageAdjust2}
+                syncImageAdjust={syncImageAdjust}
+                onSyncImageAdjustToggle={handleSyncImageAdjustToggle}
                 syncGrid={syncGrid}
                 onSyncGridToggle={handleSyncGridToggle}
                 updateGridOverride={updateGrid2}
@@ -526,6 +620,12 @@ export default function App() {
                 onTransformReset2={resetTransform2}
                 syncTransform={syncTransform}
                 onSyncToggle={handleSyncToggle}
+                onImageAdjustChange1={setImageAdjust1}
+                onImageAdjustReset1={resetImageAdjust1}
+                onImageAdjustChange2={setImageAdjust2}
+                onImageAdjustReset2={resetImageAdjust2}
+                syncImageAdjust={syncImageAdjust}
+                onSyncImageAdjustToggle={handleSyncImageAdjustToggle}
                 syncGrid={syncGrid}
                 onSyncGridToggle={handleSyncGridToggle}
                 updateGrid1={updateGrid1}

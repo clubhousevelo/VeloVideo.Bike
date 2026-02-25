@@ -262,10 +262,15 @@ export function useMarkup(): MarkupHandle {
           ...(updates.width !== undefined && { width: updates.width }),
           ...(updates.displayDuration !== undefined && { displayDuration: updates.displayDuration }),
         };
-        // Prefer caller-supplied angleDeg (computed from visual/pixel coords) for accuracy
+        // Only recalculate angleDeg when points change. Caller-supplied angleDeg uses visual coords for accuracy.
+        // Recalculating from normalized coords when only width/color/duration change would give wrong values
+        // due to letterboxing/pillarboxing (non-uniform scaling).
+        const pointsChanged = updates.p1 !== undefined || updates.vertex !== undefined || updates.p2 !== undefined;
         next.angleDeg = updates.angleDeg !== undefined
           ? updates.angleDeg
-          : calcAngleDeg(next.p1, next.vertex, next.p2);
+          : pointsChanged
+            ? calcAngleDeg(next.p1, next.vertex, next.p2)
+            : a.angleDeg;
         return next;
       });
       return { ...prev, angles };

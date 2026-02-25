@@ -35,8 +35,8 @@ function SliderRow({
   onChange: (v: number) => void;
   compact?: boolean;
 }) {
-  const labelClass = compact ? 'text-[10px] text-slate-500 w-4' : 'text-xs text-slate-500 w-5';
-  const valueClass = compact ? 'text-[10px] text-slate-300 font-mono w-14 text-right shrink-0' : 'text-xs text-slate-300 font-mono w-16 text-right shrink-0';
+  const labelClass = compact ? 'text-xs text-slate-300 w-4' : 'text-xs text-slate-300 w-5';
+  const valueClass = compact ? 'text-xs text-slate-200 font-mono w-14 text-right shrink-0' : 'text-xs text-slate-200 font-mono w-16 text-right shrink-0';
 
   return (
     <div className="flex items-center gap-2">
@@ -65,7 +65,7 @@ export default function TransformPanel({ transform, onChange, onReset, synced, o
   const containerRef = useRef<HTMLDivElement>(null);
   const active = !isDefault(transform);
 
-  const labelSize = compact ? 'text-[10px]' : 'text-xs';
+  const labelSize = compact ? 'text-xs' : 'text-xs';
   const panelPad = compact ? 'p-2 space-y-1.5' : 'p-3 space-y-2';
   const positionClass = direction === 'down' ? 'top-full mt-1' : 'bottom-full mb-1';
 
@@ -80,18 +80,18 @@ export default function TransformPanel({ transform, onChange, onReset, synced, o
   }, [open, embedded]);
 
   const panelContent = (
-    <div className={`min-w-[260px] bg-slate-800 border border-slate-600 rounded-lg shadow-xl ${panelPad}`}>
+    <div className={`min-w-[260px] bg-slate-900/80 backdrop-blur-sm border border-slate-600 rounded-lg shadow-xl ${panelPad}`}>
       <SliderRow label="⊕" value={transform.scale} min={0.25} max={4} step={0.01} display={`${transform.scale.toFixed(2)}×`} onChange={(v) => onChange({ scale: v })} compact={compact} />
       <SliderRow label="X" value={transform.translateX} min={-500} max={500} step={1} display={`${transform.translateX >= 0 ? '+' : ''}${transform.translateX} px`} onChange={(v) => onChange({ translateX: v })} compact={compact} />
       <SliderRow label="Y" value={transform.translateY} min={-500} max={500} step={1} display={`${transform.translateY >= 0 ? '+' : ''}${transform.translateY} px`} onChange={(v) => onChange({ translateY: v })} compact={compact} />
       <div className={`flex items-center justify-between gap-3 pt-0.5 ${labelSize}`}>
         {onSyncToggle && (
-          <label className={`flex items-center gap-2 cursor-pointer ${synced ? 'text-blue-400' : 'text-slate-500'} hover:text-slate-300 transition-colors`}>
+          <label className={`flex items-center gap-2 cursor-pointer ${synced ? 'text-blue-400' : 'text-slate-300'} hover:text-slate-200 transition-colors`}>
             <input type="checkbox" checked={!!synced} onChange={(e) => onSyncToggle(e.target.checked, transform)} className="accent-blue-500 cursor-pointer" />
             Sync Transform
           </label>
         )}
-        {active && <button onClick={onReset} className="text-slate-500 hover:text-slate-300 transition-colors">Reset</button>}
+        {active && <button onClick={onReset} className="text-slate-300 hover:text-slate-200 transition-colors">Reset</button>}
       </div>
     </div>
   );
@@ -103,14 +103,14 @@ export default function TransformPanel({ transform, onChange, onReset, synced, o
       <button
         onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1.5 ${labelSize} transition-colors ${
-          active ? 'text-amber-400 hover:text-amber-300' : 'text-slate-500 hover:text-slate-300'
+          active ? 'text-amber-400 hover:text-amber-300' : 'text-slate-300 hover:text-slate-200'
         }`}
       >
         <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
         </svg>
         Transform
-        {active && <span className="text-[9px] bg-amber-500/20 text-amber-400 rounded px-1">active</span>}
+        {active && <span className="text-[11px] bg-amber-500/20 text-amber-400 rounded px-1">active</span>}
         <svg
           className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}

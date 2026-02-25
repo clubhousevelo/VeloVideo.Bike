@@ -9,6 +9,15 @@ export interface VideoTransform {
 
 export const DEFAULT_TRANSFORM: VideoTransform = { scale: 1, translateX: 0, translateY: 0 };
 
+export interface ImageAdjust {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  gamma: number;
+}
+
+export const DEFAULT_IMAGE_ADJUST: ImageAdjust = { brightness: 1, contrast: 1, saturation: 1, gamma: 1 };
+
 export type MediaType = 'video' | 'image';
 
 export interface VideoState {
@@ -24,6 +33,7 @@ export interface VideoState {
   trimEnd: number;
   playbackRate: number;
   transform: VideoTransform;
+  imageAdjust: ImageAdjust;
 }
 
 export interface PersistedVideoMeta {
@@ -32,6 +42,7 @@ export interface PersistedVideoMeta {
   currentTime: number;
   playbackRate: number;
   transform: VideoTransform;
+  imageAdjust?: ImageAdjust;
 }
 
 export interface VideoPlayerHandle {
@@ -48,6 +59,8 @@ export interface VideoPlayerHandle {
   setPlaybackRate: (rate: number) => void;
   setTransform: (t: Partial<VideoTransform>) => void;
   resetTransform: () => void;
+  setImageAdjust: (a: Partial<ImageAdjust>) => void;
+  resetImageAdjust: () => void;
   play: () => void;
   pause: () => void;
 }
@@ -65,6 +78,7 @@ const INITIAL_STATE: VideoState = {
   trimEnd: 0,
   playbackRate: 1,
   transform: DEFAULT_TRANSFORM,
+  imageAdjust: DEFAULT_IMAGE_ADJUST,
 };
 
 function isImageBlob(blob: Blob): boolean {
@@ -141,6 +155,11 @@ export function useVideoPlayer(): VideoPlayerHandle {
   // This ensures listeners work after mode switches that remount the <video> element.
   useEffect(() => {
     if (!videoEl || !state.src) return;
+
+    // Sync isPlaying with actual DOM state. When switching SBS/Overlay, the old video
+    // unmounts (playback stops) but cleanup removes our pause listener before it fires,
+    // leaving state stuck at isPlaying: true. The new element mounts paused, so we sync.
+    setState((prev) => (prev.isPlaying !== !videoEl.paused ? { ...prev, isPlaying: !videoEl.paused } : prev));
 
     const onLoaded = () => {
       const dur = videoEl.duration;
@@ -238,6 +257,7 @@ export function useVideoPlayer(): VideoPlayerHandle {
     if (isImageBlob(blob)) {
       const extra: Partial<VideoState> = {};
       if (meta?.transform != null) extra.transform = meta.transform;
+      if (meta?.imageAdjust != null) extra.imageAdjust = meta.imageAdjust;
       setStateFromImageUrl(setState, url, fileName, rate, extra);
     } else {
       const base = { ...INITIAL_STATE, src: url, fileName, playbackRate: rate };
@@ -247,6 +267,7 @@ export function useVideoPlayer(): VideoPlayerHandle {
         if (meta.currentTime != null) base.currentTime = meta.currentTime;
         if (meta.playbackRate != null) base.playbackRate = meta.playbackRate;
         if (meta.transform != null) base.transform = meta.transform;
+        if (meta.imageAdjust != null) base.imageAdjust = meta.imageAdjust;
       }
       setState(base);
     }
@@ -328,6 +349,14 @@ export function useVideoPlayer(): VideoPlayerHandle {
     setState((prev) => ({ ...prev, transform: DEFAULT_TRANSFORM }));
   }, []);
 
+  const setImageAdjust = useCallback((a: Partial<ImageAdjust>) => {
+    setState((prev) => ({ ...prev, imageAdjust: { ...prev.imageAdjust, ...a } }));
+  }, []);
+
+  const resetImageAdjust = useCallback(() => {
+    setState((prev) => ({ ...prev, imageAdjust: DEFAULT_IMAGE_ADJUST }));
+  }, []);
+
   return {
     state,
     videoRef,
@@ -342,6 +371,8 @@ export function useVideoPlayer(): VideoPlayerHandle {
     setPlaybackRate,
     setTransform,
     resetTransform,
+    setImageAdjust,
+    resetImageAdjust,
     play,
     pause,
   };

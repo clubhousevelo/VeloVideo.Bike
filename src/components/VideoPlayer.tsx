@@ -1,16 +1,17 @@
-import { useState, useRef, useEffect } from 'react';
-import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer';
+import { useState, useRef, useEffect, useId } from 'react';
+import type { VideoPlayerHandle, VideoTransform, ImageAdjust } from '../hooks/useVideoPlayer';
 import { useRepeatWhilePressed } from '../hooks/useRepeatWhilePressed';
 import type { MarkupHandle, GridSettings } from '../hooks/useMarkup';
 import { getScrubberMarkers } from '../hooks/useMarkup';
 import type { ToolStripPanel } from './ToolStrip';
 import ScrubberWithTrim from './ScrubberWithTrim';
 import TransformPanel from './TransformPanel';
+import ImageAdjustPanel, { imageAdjustToFilter, GammaFilterSvg } from './ImageAdjustPanel';
 import MarkupPopupByType from './MarkupPopupByType';
 import MarkupOverlay from './MarkupOverlay';
 import ToolStrip from './ToolStrip';
 import ActionStrip from './ActionStrip';
-import { DEFAULT_TRANSFORM } from '../hooks/useVideoPlayer';
+import { DEFAULT_TRANSFORM, DEFAULT_IMAGE_ADJUST } from '../hooks/useVideoPlayer';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { isMediaFile } from '../lib/videoFile';
 
@@ -29,6 +30,10 @@ interface VideoPlayerProps {
   onTransformReset?: () => void;
   syncTransform?: boolean;
   onSyncToggle?: (enabled: boolean, current: VideoTransform) => void;
+  onImageAdjustChange?: (a: Partial<ImageAdjust>) => void;
+  onImageAdjustReset?: () => void;
+  syncImageAdjust?: boolean;
+  onSyncImageAdjustToggle?: (enabled: boolean, current: ImageAdjust) => void;
   syncGrid?: boolean;
   onSyncGridToggle?: (enabled: boolean, current: GridSettings) => void;
   updateGridOverride?: (g: Partial<GridSettings>) => void;
@@ -41,10 +46,11 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
 }
 
-export default function VideoPlayer({ label, handle, markupHandle, side, isActive, onActivate, onRemoveVideo, onDropFile, onTransformChange, onTransformReset, syncTransform, onSyncToggle, syncGrid, onSyncGridToggle, updateGridOverride }: VideoPlayerProps) {
+export default function VideoPlayer({ label, handle, markupHandle, side, isActive, onActivate, onRemoveVideo, onDropFile, onTransformChange, onTransformReset, syncTransform, onSyncToggle, onImageAdjustChange, onImageAdjustReset, syncImageAdjust, onSyncImageAdjustToggle, syncGrid, onSyncGridToggle, updateGridOverride }: VideoPlayerProps) {
+  const gammaFilterId = useId();
   const videoAR = handle.state.videoWidth && handle.state.videoHeight ? handle.state.videoWidth / handle.state.videoHeight : 0;
-  const { state, videoRef, selectFile, clearVideo, togglePlay, scrub, setTrimStart, setTrimEnd, stepFrame, setTransform, resetTransform } = handle;
-  const { src: videoSrc, fileName, duration, currentTime, isPlaying, trimStart, trimEnd, transform } = state;
+  const { state, videoRef, selectFile, clearVideo, togglePlay, scrub, setTrimStart, setTrimEnd, stepFrame, setTransform, resetTransform, setImageAdjust, resetImageAdjust } = handle;
+  const { src: videoSrc, fileName, duration, currentTime, isPlaying, trimStart, trimEnd, transform, imageAdjust } = state;
 
   const [activePanel, setActivePanel] = useState<ToolStripPanel | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -70,8 +76,11 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
 
   const effectiveSetTransform = onTransformChange ?? setTransform;
   const effectiveResetTransform = onTransformReset ?? resetTransform;
+  const effectiveSetImageAdjust = onImageAdjustChange ?? setImageAdjust;
+  const effectiveResetImageAdjust = onImageAdjustReset ?? resetImageAdjust;
 
   const transformActive = transform.scale !== DEFAULT_TRANSFORM.scale || transform.translateX !== DEFAULT_TRANSFORM.translateX || transform.translateY !== DEFAULT_TRANSFORM.translateY;
+  const adjustActive = imageAdjust.brightness !== DEFAULT_IMAGE_ADJUST.brightness || imageAdjust.contrast !== DEFAULT_IMAGE_ADJUST.contrast || imageAdjust.saturation !== DEFAULT_IMAGE_ADJUST.saturation || imageAdjust.gamma !== DEFAULT_IMAGE_ADJUST.gamma;
   const gridActive = markupHandle.state.grid.show;
   const lineActive = markupHandle.state.lines.length > 0;
   const angleActive = markupHandle.state.angles.length > 0;
@@ -105,6 +114,8 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
 
   const popupContent = activePanel === 'transform' ? (
     <TransformPanel embedded transform={transform} onChange={effectiveSetTransform} onReset={effectiveResetTransform} synced={syncTransform} onSyncToggle={onSyncToggle} />
+  ) : activePanel === 'adjust' ? (
+    <ImageAdjustPanel embedded imageAdjust={imageAdjust} onChange={effectiveSetImageAdjust} onReset={effectiveResetImageAdjust} synced={syncImageAdjust} onSyncToggle={onSyncImageAdjustToggle} />
   ) : (activePanel === 'grid' || activePanel === 'line' || activePanel === 'angle' || activePanel === 'text') ? (
     <MarkupPopupByType
       markup={markupHandle}
@@ -119,12 +130,13 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
 
   const stripColumn = (
     <div ref={stripRef} className="relative shrink-0 flex flex-col items-start gap-1">
-      <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing}`}>
+      <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing}`} data-tooltip-side={stripOnLeft ? 'right' : 'left'}>
         <ToolStrip
           side={side}
           active={activePanel}
           onActiveChange={setActivePanel}
           transformActive={transformActive}
+          adjustActive={adjustActive}
           gridActive={gridActive}
           lineActive={lineActive}
           angleActive={angleActive}
@@ -165,6 +177,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
+            <GammaFilterSvg id={gammaFilterId} gamma={imageAdjust.gamma} />
             {handle.state.mediaType === 'image' ? (
               <img
                 src={videoSrc}
@@ -173,6 +186,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 style={{
                   transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
+                  filter: imageAdjustToFilter(imageAdjust, gammaFilterId),
                 }}
               />
             ) : (
@@ -183,12 +197,13 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 style={{
                   transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
+                  filter: imageAdjustToFilter(imageAdjust, gammaFilterId),
                 }}
                 playsInline
                 preload="auto"
               />
             )}
-            <MarkupOverlay handle={markupHandle} transform={transform} videoAR={videoAR} currentTime={currentTime} />
+            <MarkupOverlay handle={markupHandle} transform={transform} videoAR={videoAR} currentTime={currentTime} onOpenToolPanel={(type) => setActivePanel(type)} />
             <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-xs font-semibold text-white px-2.5 py-1 rounded-md pointer-events-none">
               {label}
             </div>

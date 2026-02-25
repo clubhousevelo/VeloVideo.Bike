@@ -1,5 +1,8 @@
 const btnClass = 'w-9 h-9 flex items-center justify-center rounded border transition-colors shrink-0';
 
+const isMac = typeof navigator !== 'undefined' && (navigator.platform?.toLowerCase().includes('mac') || /Mac|iPod|iPhone|iPad/.test(navigator.userAgent));
+const modKey = isMac ? 'Cmd' : 'Ctrl';
+
 interface ActionStripProps {
   canUndo: boolean;
   canRedo: boolean;
@@ -11,12 +14,13 @@ interface ActionStripProps {
 
 export default function ActionStrip({ canUndo, canRedo, hasMarkup, onUndo, onRedo, onClearAll }: ActionStripProps) {
   return (
-    <div className="flex flex-col gap-0.5 p-1 bg-slate-900/80 border border-slate-600/60 rounded-lg">
+    <div className="mt-2 flex flex-col gap-0.5 p-1 bg-slate-900/75 border border-slate-600/60 rounded-lg">
       {/* Undo */}
       <button
         onClick={onUndo}
         disabled={!canUndo}
-        title="Undo"
+        data-tooltip={`Undo (${modKey}+Z)`}
+        aria-label={`Undo (${modKey}+Z)`}
         className={`${btnClass} border-slate-600/70 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400`}
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -28,7 +32,8 @@ export default function ActionStrip({ canUndo, canRedo, hasMarkup, onUndo, onRed
       <button
         onClick={onRedo}
         disabled={!canRedo}
-        title="Redo"
+        data-tooltip={`Redo (${modKey}+Shift+Z)`}
+        aria-label={`Redo (${modKey}+Shift+Z)`}
         className={`${btnClass} border-slate-600/70 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400`}
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -40,7 +45,8 @@ export default function ActionStrip({ canUndo, canRedo, hasMarkup, onUndo, onRed
       <button
         onClick={onClearAll}
         disabled={!hasMarkup}
-        title="Clear all markups"
+        data-tooltip="Clear all markups"
+        aria-label="Clear all markups"
         className={`${btnClass} border-slate-600/70 text-slate-400 hover:text-red-400 hover:bg-slate-700/80 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400`}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>

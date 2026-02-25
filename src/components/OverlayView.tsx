@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer';
+import { useState, useRef, useEffect, useMemo, useId } from 'react';
+import type { VideoPlayerHandle, VideoTransform, ImageAdjust } from '../hooks/useVideoPlayer';
 import { useRepeatWhilePressed } from '../hooks/useRepeatWhilePressed';
-import { DEFAULT_TRANSFORM } from '../hooks/useVideoPlayer';
+import { DEFAULT_TRANSFORM, DEFAULT_IMAGE_ADJUST } from '../hooks/useVideoPlayer';
 import type { MarkupHandle, GridSettings } from '../hooks/useMarkup';
 import { getScrubberMarkers } from '../hooks/useMarkup';
 import ScrubberWithTrim from './ScrubberWithTrim';
 import TransformPanel from './TransformPanel';
+import ImageAdjustPanel, { imageAdjustToFilter, GammaFilterSvg } from './ImageAdjustPanel';
 import MarkupPopupByType from './MarkupPopupByType';
 import MarkupOverlay from './MarkupOverlay';
 import ToolStrip from './ToolStrip';
@@ -129,13 +130,21 @@ interface OverlayViewProps {
   onTransformReset2?: () => void;
   syncTransform?: boolean;
   onSyncToggle?: (enabled: boolean, current: VideoTransform) => void;
+  onImageAdjustChange1?: (a: Partial<ImageAdjust>) => void;
+  onImageAdjustReset1?: () => void;
+  onImageAdjustChange2?: (a: Partial<ImageAdjust>) => void;
+  onImageAdjustReset2?: () => void;
+  syncImageAdjust?: boolean;
+  onSyncImageAdjustToggle?: (enabled: boolean, current: ImageAdjust) => void;
   syncGrid?: boolean;
   onSyncGridToggle?: (enabled: boolean, current: GridSettings) => void;
   updateGrid1?: (g: Partial<GridSettings>) => void;
   updateGrid2?: (g: Partial<GridSettings>) => void;
 }
 
-export default function OverlayView({ handle1, handle2, markupHandle1, markupHandle2, activeVideo, onActivate1, onActivate2, onRemoveVideo1, onRemoveVideo2, onDropFile, onTransformChange1, onTransformReset1, onTransformChange2, onTransformReset2, syncTransform, onSyncToggle, syncGrid, onSyncGridToggle, updateGrid1, updateGrid2 }: OverlayViewProps) {
+export default function OverlayView({ handle1, handle2, markupHandle1, markupHandle2, activeVideo, onActivate1, onActivate2, onRemoveVideo1, onRemoveVideo2, onDropFile, onTransformChange1, onTransformReset1, onTransformChange2, onTransformReset2, syncTransform, onSyncToggle, onImageAdjustChange1, onImageAdjustReset1, onImageAdjustChange2, onImageAdjustReset2, syncImageAdjust, onSyncImageAdjustToggle, syncGrid, onSyncGridToggle, updateGrid1, updateGrid2 }: OverlayViewProps) {
+  const gammaFilterId1 = useId();
+  const gammaFilterId2 = useId();
   const [blendPosition, setBlendPosition] = useState(50);
   const [activePanel1, setActivePanel1] = useState<ToolStripPanel | null>(null);
   const [activePanel2, setActivePanel2] = useState<ToolStripPanel | null>(null);
@@ -147,8 +156,12 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const opacity2 = blendPosition / 100;
   const t1 = handle1.state.transform;
   const t2 = handle2.state.transform;
+  const adj1 = handle1.state.imageAdjust;
+  const adj2 = handle2.state.imageAdjust;
   const transform1Active = t1.scale !== DEFAULT_TRANSFORM.scale || t1.translateX !== DEFAULT_TRANSFORM.translateX || t1.translateY !== DEFAULT_TRANSFORM.translateY;
   const transform2Active = t2.scale !== DEFAULT_TRANSFORM.scale || t2.translateX !== DEFAULT_TRANSFORM.translateX || t2.translateY !== DEFAULT_TRANSFORM.translateY;
+  const adjust1Active = adj1.brightness !== DEFAULT_IMAGE_ADJUST.brightness || adj1.contrast !== DEFAULT_IMAGE_ADJUST.contrast || adj1.saturation !== DEFAULT_IMAGE_ADJUST.saturation || adj1.gamma !== DEFAULT_IMAGE_ADJUST.gamma;
+  const adjust2Active = adj2.brightness !== DEFAULT_IMAGE_ADJUST.brightness || adj2.contrast !== DEFAULT_IMAGE_ADJUST.contrast || adj2.saturation !== DEFAULT_IMAGE_ADJUST.saturation || adj2.gamma !== DEFAULT_IMAGE_ADJUST.gamma;
   const grid1Active = markupHandle1.state.grid.show;
   const line1Active = markupHandle1.state.lines.length > 0;
   const angle1Active = markupHandle1.state.angles.length > 0;
@@ -164,6 +177,10 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const setTransform2 = onTransformChange2 ?? handle2.setTransform;
   const resetTransform1 = onTransformReset1 ?? handle1.resetTransform;
   const resetTransform2 = onTransformReset2 ?? handle2.resetTransform;
+  const setImageAdjust1 = onImageAdjustChange1 ?? handle1.setImageAdjust;
+  const setImageAdjust2 = onImageAdjustChange2 ?? handle2.setImageAdjust;
+  const resetImageAdjust1 = onImageAdjustReset1 ?? handle1.resetImageAdjust;
+  const resetImageAdjust2 = onImageAdjustReset2 ?? handle2.resetImageAdjust;
   const activeRing1 = activeVideo === 1 ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
   const activeRing2 = activeVideo === 2 ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
 
@@ -233,6 +250,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
 
   const popup1 = activePanel1 === 'transform' ? (
     <TransformPanel embedded transform={handle1.state.transform} onChange={setTransform1} onReset={resetTransform1} synced={syncTransform} onSyncToggle={onSyncToggle} />
+  ) : activePanel1 === 'adjust' ? (
+    <ImageAdjustPanel embedded imageAdjust={adj1} onChange={setImageAdjust1} onReset={resetImageAdjust1} synced={syncImageAdjust} onSyncToggle={onSyncImageAdjustToggle} />
   ) : (activePanel1 === 'grid' || activePanel1 === 'line' || activePanel1 === 'angle' || activePanel1 === 'text') ? (
     <MarkupPopupByType
       markup={markupHandle1}
@@ -245,6 +264,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
 
   const popup2 = activePanel2 === 'transform' ? (
     <TransformPanel embedded transform={handle2.state.transform} onChange={setTransform2} onReset={resetTransform2} synced={syncTransform} onSyncToggle={onSyncToggle} />
+  ) : activePanel2 === 'adjust' ? (
+    <ImageAdjustPanel embedded imageAdjust={adj2} onChange={setImageAdjust2} onReset={resetImageAdjust2} synced={syncImageAdjust} onSyncToggle={onSyncImageAdjustToggle} />
   ) : (activePanel2 === 'grid' || activePanel2 === 'line' || activePanel2 === 'angle' || activePanel2 === 'text') ? (
     <MarkupPopupByType
       markup={markupHandle2}
@@ -260,12 +281,13 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
       <div className="flex flex-1 min-h-0 gap-2 items-stretch">
         {/* Left strip: V1 tools */}
         <div ref={stripRef1} className="relative shrink-0 flex flex-col items-start gap-1" onClick={onActivate1}>
-          <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing1}`}>
+          <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing1}`} data-tooltip-side="right">
             <ToolStrip
               side="left"
               active={activePanel1}
               onActiveChange={setActivePanel1}
               transformActive={transform1Active}
+              adjustActive={adjust1Active}
               gridActive={grid1Active}
               lineActive={line1Active}
               angleActive={angle1Active}
@@ -315,6 +337,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
           }}
         >
           <div className="absolute inset-0">
+            <GammaFilterSvg id={gammaFilterId1} gamma={adj1.gamma} />
+            <GammaFilterSvg id={gammaFilterId2} gamma={adj2.gamma} />
             {handle1.state.src && (
               <div
                 className="absolute inset-0"
@@ -332,6 +356,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     style={{
                       transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
+                      filter: imageAdjustToFilter(adj1, gammaFilterId1),
                     }}
                   />
                 ) : (
@@ -342,6 +367,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     style={{
                       transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
+                      filter: imageAdjustToFilter(adj1, gammaFilterId1),
                     }}
                     playsInline
                     preload="auto"
@@ -353,6 +379,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
                   correctionScale={correctionScale}
                   currentTime={handle1.state.currentTime}
+                  onOpenToolPanel={(type) => { onActivate1?.(); setActivePanel1(type); }}
                 />
               </div>
             )}
@@ -374,6 +401,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     style={{
                       transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
+                      filter: imageAdjustToFilter(adj2, gammaFilterId2),
                     }}
                   />
                 ) : (
@@ -384,6 +412,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     style={{
                       transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
+                      filter: imageAdjustToFilter(adj2, gammaFilterId2),
                     }}
                     playsInline
                     preload="auto"
@@ -395,6 +424,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
                   correctionScale={correctionScale}
                   currentTime={handle2.state.currentTime}
+                  onOpenToolPanel={(type) => { onActivate2?.(); setActivePanel2(type); }}
                 />
               </div>
             )}
@@ -473,12 +503,13 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
 
         {/* Right strip: V2 tools */}
         <div ref={stripRef2} className="relative shrink-0 flex flex-col items-start gap-1" onClick={onActivate2}>
-          <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing2}`}>
+          <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing2}`} data-tooltip-side="left">
             <ToolStrip
               side="right"
               active={activePanel2}
               onActiveChange={setActivePanel2}
               transformActive={transform2Active}
+              adjustActive={adjust2Active}
               gridActive={grid2Active}
               lineActive={line2Active}
               angleActive={angle2Active}

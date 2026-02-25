@@ -1,10 +1,11 @@
-export type ToolStripPanel = 'transform' | 'grid' | 'line' | 'angle' | 'text';
+export type ToolStripPanel = 'transform' | 'adjust' | 'grid' | 'line' | 'angle' | 'text';
 
 interface ToolStripProps {
   side: 'left' | 'right';
   active: ToolStripPanel | null;
   onActiveChange: (panel: ToolStripPanel | null) => void;
   transformActive?: boolean;
+  adjustActive?: boolean;
   gridActive?: boolean;
   lineActive?: boolean;
   angleActive?: boolean;
@@ -43,6 +44,7 @@ export default function ToolStrip({
   active,
   onActiveChange,
   transformActive,
+  adjustActive,
   gridActive,
   lineActive,
   angleActive,
@@ -51,15 +53,28 @@ export default function ToolStrip({
   onToggleHidden,
 }: ToolStripProps) {
   return (
-    <div className={`flex flex-col gap-0.5 p-1 bg-slate-900/80 border border-slate-600/60 rounded-lg ${side === 'left' ? '' : ''}`}>
+    <div className={`flex flex-col gap-0.5 p-1 bg-slate-900/75 border border-slate-600/60 rounded-lg ${side === 'left' ? '' : ''}`}>
       {/* Transform */}
       <button
         onClick={() => onActiveChange(active === 'transform' ? null : 'transform')}
         className={`${btnClass} ${active === 'transform' ? 'bg-amber-600/80 border-amber-500 text-white' : transformActive ? 'border-amber-500/50 text-amber-400 hover:bg-slate-700/80' : 'border-slate-600/70 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80'}`}
-        title="Transform (scale, pan)"
+        data-tooltip="Transform (Z+↑/↓ scale, X+arrows pan)"
+        aria-label="Transform (scale, pan)"
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+        </svg>
+      </button>
+
+      {/* Image adjust */}
+      <button
+        onClick={() => onActiveChange(active === 'adjust' ? null : 'adjust')}
+        className={`${btnClass} ${active === 'adjust' ? 'bg-violet-600/80 border-violet-500 text-white' : adjustActive ? 'border-violet-500/50 text-violet-400 hover:bg-slate-700/80' : 'border-slate-600/70 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80'}`}
+        data-tooltip="Image adjust (brightness, contrast, saturation, gamma)"
+        aria-label="Image adjust"
+      >
+        <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
         </svg>
       </button>
 
@@ -70,7 +85,8 @@ export default function ToolStrip({
       <button
         onClick={() => onActiveChange(active === 'grid' ? null : 'grid')}
         className={`${btnClass} ${activeClass(!!gridActive, active === 'grid')}`}
-        title="Grid"
+        data-tooltip="Grid (G)"
+        aria-label="Grid (G)"
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
@@ -81,7 +97,8 @@ export default function ToolStrip({
       <button
         onClick={() => onActiveChange(active === 'line' ? null : 'line')}
         className={`${btnClass} ${toolClass('line', !!lineActive, active === 'line')}`}
-        title="Line"
+        data-tooltip="Line (L)"
+        aria-label="Line (L)"
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
           <path d="M4 20L20 4" strokeLinecap="round" />
@@ -92,7 +109,8 @@ export default function ToolStrip({
       <button
         onClick={() => onActiveChange(active === 'angle' ? null : 'angle')}
         className={`${btnClass} ${toolClass('angle', !!angleActive, active === 'angle')}`}
-        title="Angle"
+        data-tooltip="Angle (A)"
+        aria-label="Angle (A)"
       >
         <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
           <path d="M5 19L12 5L19 19" strokeLinecap="round" strokeLinejoin="round" />
@@ -103,7 +121,8 @@ export default function ToolStrip({
       <button
         onClick={() => onActiveChange(active === 'text' ? null : 'text')}
         className={`${btnClass} ${toolClass('text', !!textActive, active === 'text')}`}
-        title="Text"
+        data-tooltip="Text (T)"
+        aria-label="Text (T)"
       >
         <span className="text-[15px] font-bold leading-none tracking-tight select-none">Aa</span>
       </button>
@@ -115,7 +134,8 @@ export default function ToolStrip({
       <button
         onClick={onToggleHidden}
         className={`${btnClass} ${markupHidden ? 'border-slate-600/70 text-slate-600 hover:text-slate-400 hover:bg-slate-700/80' : 'border-slate-600/70 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80'}`}
-        title={markupHidden ? 'Show markups' : 'Hide markups'}
+        data-tooltip={markupHidden ? 'Show markups (H)' : 'Hide markups (H)'}
+        aria-label={markupHidden ? 'Show markups (H)' : 'Hide markups (H)'}
       >
         {markupHidden ? (
           /* Eye-slash (hidden state) */

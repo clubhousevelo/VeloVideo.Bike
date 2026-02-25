@@ -143,6 +143,8 @@ interface MarkupOverlayProps {
   correctionScale?: number;
   /** Video current time (seconds). Used for timestamp when adding markups and for visibility filtering. */
   currentTime?: number;
+  /** Called when user double-clicks a markup item. Opens the corresponding tool panel. */
+  onOpenToolPanel?: (type: 'line' | 'angle' | 'text') => void;
 }
 
 type DragState =
@@ -168,7 +170,7 @@ function isMarkupVisible(
   return currentTime <= t + dur;
 }
 
-export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1, currentTime = 0 }: MarkupOverlayProps) {
+export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1, currentTime = 0, onOpenToolPanel }: MarkupOverlayProps) {
   const { state, addLine, addAngle, addText, updateLine, updateAngle, updateText, setSelected, setTool, snapshotForUndo, removeItem } = handle;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -364,9 +366,27 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
     e.stopPropagation();
   }, [state.tool, state.lines, state.angles, state.texts, getCanvasPoint, hitTest, setSelected, snapshotForUndo]);
 
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (!onOpenToolPanel) return;
+    const canvasPt = getCanvasPoint(e);
+    const hit = hitTest(canvasPt);
+    if (hit && (hit.type === 'line' || hit.type === 'angle' || hit.type === 'text')) {
+      e.stopPropagation();
+      setDrag(null);
+      setSelected(hit);
+      onOpenToolPanel(hit.type);
+    }
+  }, [onOpenToolPanel, getCanvasPoint, hitTest, setSelected]);
+
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (state.tool === 'none') return;
     e.stopPropagation();
+    // When a markup is selected, disable creating new items until unselected
+    if (state.selected) {
+      setSelected(null);
+      setPendingPoints([]);
+      return;
+    }
     const canvasPt = getCanvasPoint(e);
     const n = norm(canvasPt.x, canvasPt.y);
 
@@ -403,7 +423,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
     } else if (state.tool === 'text') {
       setEditingText({ id: '', normX: n.x, normY: n.y, value: '' });
     }
-  }, [state.tool, state.activeColor, state.lineWidth, pendingPoints, addLine, addAngle, setTool, getCanvasPoint, norm, vis, currentTime]);
+  }, [state.tool, state.selected, state.activeColor, state.lineWidth, pendingPoints, addLine, addAngle, setTool, setSelected, getCanvasPoint, norm, vis, currentTime]);
 
   const commitText = useCallback(() => {
     if (editingText) {
@@ -483,6 +503,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         onMouseLeave={handleMouseLeave}
         onMouseDown={handleMouseDown}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         style={{ pointerEvents: isToolActive || hasContent ? 'all' : 'none' }}
       >
         {gridLines}
@@ -607,7 +628,8 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
                   onDoubleClick={(e) => {
                     if (state.tool === 'none') {
                       e.stopPropagation();
-                      setEditingText({ id: text.id, normX: text.x, normY: text.y, value: text.content });
+                      setSelected({ type: 'text', id: text.id });
+                      onOpenToolPanel?.('text');
                     }
                   }}
                 >
@@ -660,7 +682,8 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
                 onDoubleClick={(e) => {
                   if (state.tool === 'none') {
                     e.stopPropagation();
-                    setEditingText({ id: text.id, normX: text.x, normY: text.y, value: text.content });
+                    setSelected({ type: 'text', id: text.id });
+                    onOpenToolPanel?.('text');
                   }
                 }}
               >

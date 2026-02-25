@@ -92,16 +92,28 @@ export default function ScrubberWithTrim({
     (e: React.MouseEvent, time: number) => {
       e.preventDefault();
       e.stopPropagation();
-      onScrub(time);
+      const scrubMin = trimEnd > trimStart ? trimStart : 0;
+      const scrubMax = trimEnd > trimStart ? trimEnd : duration || 1;
+      onScrub(Math.max(scrubMin, Math.min(scrubMax, time)));
     },
-    [onScrub]
+    [trimStart, trimEnd, duration, onScrub]
   );
 
   const progressInTrim =
     duration > 0 && trimEnd > trimStart
       ? ((currentTime - trimStart) / (trimEnd - trimStart)) * 100
       : 0;
-  const playheadPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const rawPlayheadPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  // When trim brackets are placed, keep playhead within brackets
+  const playheadPercent =
+    trimEnd > trimStart
+      ? Math.max(trimStartPercent, Math.min(trimEndPercent, rawPlayheadPercent))
+      : rawPlayheadPercent;
+
+  // When trim brackets are placed, constrain scrubber to [trimStart, trimEnd]
+  const scrubMin = trimEnd > trimStart ? trimStart : 0;
+  const scrubMax = trimEnd > trimStart ? trimEnd : duration || 1;
+  const scrubValue = Math.max(scrubMin, Math.min(scrubMax, currentTime));
 
   return (
     <div className={`relative w-full ${trackHeight} ${className}`} ref={trackRef}>
@@ -150,15 +162,20 @@ export default function ScrubberWithTrim({
         aria-hidden
       />
 
-      {/* Seek input (invisible, for dragging) */}
+      {/* Seek input (invisible, for dragging) — when trim active, only cover trim region so cursor maps 1:1 */}
       <input
         type="range"
-        min={0}
-        max={duration || 1}
+        min={scrubMin}
+        max={scrubMax}
         step={0.01}
-        value={currentTime}
-        onChange={(e) => onScrub(parseFloat(e.target.value))}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+        value={scrubValue}
+        onChange={(e) => onScrub(Math.max(scrubMin, Math.min(scrubMax, parseFloat(e.target.value))))}
+        className="absolute top-0 bottom-0 opacity-0 cursor-pointer z-10"
+        style={
+          trimEnd > trimStart
+            ? { left: `${trimStartPercent}%`, width: `${trimWidthPercent}%` }
+            : { left: 0, right: 0 }
+        }
       />
 
       {/* Left bracket [ — trim start */}

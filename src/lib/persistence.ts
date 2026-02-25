@@ -3,7 +3,7 @@
  * so they survive page refresh. Used for testing and convenience.
  */
 
-import type { VideoTransform } from '../hooks/useVideoPlayer';
+import type { VideoTransform, ImageAdjust } from '../hooks/useVideoPlayer';
 import type { MarkupSnap } from '../hooks/useMarkup';
 
 const DB_NAME = 'VeloVideoBike';
@@ -19,6 +19,7 @@ export interface PersistedVideo {
   currentTime: number;
   playbackRate: number;
   transform: VideoTransform;
+  imageAdjust?: ImageAdjust;
   markup?: MarkupSnap;
 }
 
