@@ -42,14 +42,15 @@ function computeVideoBox(canvasW: number, canvasH: number, videoAR: number): Vid
 
 /**
  * Convert normalized video-frame coordinates → SVG canvas visual position.
- * Accounts for the video display box offset and the video CSS transform.
+ * Matches CSS transform: translate(tx, -ty) scale(s) with transform-origin: center.
+ * Order: translate first, then scale around center — translation is NOT scaled.
  */
 function toVisual(nx: number, ny: number, vBox: VideoBox, W: number, H: number, vt: VideoTransform): Point {
   const cx = vBox.x + nx * vBox.w;
   const cy = vBox.y + ny * vBox.h;
   return {
-    x: vt.scale * (cx - W / 2 + vt.translateX) + W / 2,
-    y: vt.scale * (cy - H / 2 - vt.translateY) + H / 2,
+    x: W / 2 + vt.translateX + vt.scale * (cx - W / 2),
+    y: H / 2 - vt.translateY + vt.scale * (cy - H / 2),
   };
 }
 
@@ -58,8 +59,8 @@ function toVisual(nx: number, ny: number, vBox: VideoBox, W: number, H: number, 
  * Inverse of toVisual.
  */
 function toNormalized(canvasX: number, canvasY: number, vBox: VideoBox, W: number, H: number, vt: VideoTransform): Point {
-  const contentX = (canvasX - W / 2) / vt.scale - vt.translateX + W / 2;
-  const contentY = (canvasY - H / 2) / vt.scale + vt.translateY + H / 2;
+  const contentX = (canvasX - W / 2 - vt.translateX) / vt.scale + W / 2;
+  const contentY = (canvasY - H / 2 + vt.translateY) / vt.scale + H / 2;
   return {
     x: (contentX - vBox.x) / vBox.w,
     y: (contentY - vBox.y) / vBox.h,
@@ -137,6 +138,8 @@ interface MarkupOverlayProps {
   transform: VideoTransform;
   /** Natural aspect ratio of the video (videoWidth / videoHeight). 0 = unknown → full canvas. */
   videoAR: number;
+  /** Optional: scale the effective video box (e.g. overlay correction). Use raw transform when set. */
+  correctionScale?: number;
 }
 
 type DragState =
@@ -147,7 +150,7 @@ type DragState =
   | { kind: 'body-text'; id: string; ox: number; oy: number; mx0: number; my0: number }
   | { kind: 'box-resize'; id: string; origBoxNorm: number; startCanvasX: number };
 
-export default function MarkupOverlay({ handle, transform, videoAR }: MarkupOverlayProps) {
+export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1 }: MarkupOverlayProps) {
   const { state, addLine, addAngle, addText, updateLine, updateAngle, updateText, setSelected, setTool, snapshotForUndo, removeItem } = handle;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -207,7 +210,16 @@ export default function MarkupOverlay({ handle, transform, videoAR }: MarkupOver
   // Derived helpers (re-computed per render but cheap)
   const W = svgSize.width;
   const H = svgSize.height;
-  const vBox = computeVideoBox(W, H, videoAR);
+  const vBoxRaw = computeVideoBox(W, H, videoAR);
+  const vBox =
+    correctionScale !== 1
+      ? {
+          x: W / 2 - (vBoxRaw.w * correctionScale) / 2,
+          y: H / 2 - (vBoxRaw.h * correctionScale) / 2,
+          w: vBoxRaw.w * correctionScale,
+          h: vBoxRaw.h * correctionScale,
+        }
+      : vBoxRaw;
 
   const vis = useCallback((nx: number, ny: number) => toVisual(nx, ny, vBox, W, H, transform), [vBox, W, H, transform]);
   const norm = useCallback((cx: number, cy: number) => toNormalized(cx, cy, vBox, W, H, transform), [vBox, W, H, transform]);

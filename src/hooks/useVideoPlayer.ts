@@ -308,6 +308,7 @@ export function useVideoPlayer(): VideoPlayerHandle {
   const stepFrame = useCallback((dir: number) => {
     const video = videoElRef.current;
     if (!video || !video.paused) return;
+    if (video.seeking) return;
     const st = stateRef.current;
     const step = dir * (1 / 60); // 1 frame at 60fps
     const newTime = Math.max(st.trimStart, Math.min(st.trimEnd, video.currentTime + step));

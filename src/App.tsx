@@ -3,7 +3,7 @@ import VideoPlayer from './components/VideoPlayer';
 import OverlayView from './components/OverlayView';
 import { useVideoPlayer } from './hooks/useVideoPlayer';
 import type { VideoTransform } from './hooks/useVideoPlayer';
-import { useMarkup } from './hooks/useMarkup';
+import { useMarkup, type GridSettings } from './hooks/useMarkup';
 import { getPersistedVideos, setPersistedVideo, removePersistedVideo } from './lib/persistence';
 import { isMediaFile } from './lib/videoFile';
 
@@ -12,16 +12,20 @@ type ViewMode = 'side-by-side' | 'overlay';
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
 const SAVE_DEBOUNCE_MS = 1500;
 const SKIP_SAVE_AFTER_MOUNT_MS = 2500;
+const STEP_REPEAT_DELAY_MS = 200;
+const STEP_REPEAT_INTERVAL_MS = 50;
 
 export default function App() {
   const mountTimeRef = useRef(Date.now());
   const saveTimeout1Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimeout2Ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stepRepeatRef = useRef<{ timeout: ReturnType<typeof setTimeout>; interval: ReturnType<typeof setInterval> | null } | null>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>('side-by-side');
   const [globalRate, setGlobalRate] = useState(1);
   const [hydrated, setHydrated] = useState(false);
   const [syncTransform, setSyncTransform] = useState(false);
+  const [syncGrid, setSyncGrid] = useState(false);
   const [activeVideo, setActiveVideo] = useState<1 | 2>(1);
 
   const handle1 = useVideoPlayer();
@@ -58,6 +62,25 @@ export default function App() {
     handle2.resetTransform();
     if (syncTransform) handle1.resetTransform();
   }, [syncTransform, handle1, handle2]);
+
+  // Sync Grid: when enabled, copy initiating video's grid to the other; changes propagate both ways
+  const handleSyncGridToggle = useCallback((enabled: boolean, source: GridSettings) => {
+    setSyncGrid(enabled);
+    if (enabled) {
+      markup1.updateGrid(source);
+      markup2.updateGrid(source);
+    }
+  }, [markup1, markup2]);
+
+  const updateGrid1 = useCallback((g: Partial<GridSettings>) => {
+    markup1.updateGrid(g);
+    if (syncGrid) markup2.updateGrid(g);
+  }, [syncGrid, markup1, markup2]);
+
+  const updateGrid2 = useCallback((g: Partial<GridSettings>) => {
+    markup2.updateGrid(g);
+    if (syncGrid) markup1.updateGrid(g);
+  }, [syncGrid, markup1, markup2]);
 
   const anyPlaying = handle1.state.isPlaying || handle2.state.isPlaying;
   const hasAnyVideo = handle1.state.src || handle2.state.src;
@@ -260,14 +283,42 @@ export default function App() {
       }
       if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        if (handle1.state.src) handle1.stepFrame(-1);
-        if (handle2.state.src) handle2.stepFrame(-1);
+        if (e.repeat) return;
+        if (stepRepeatRef.current) {
+          clearTimeout(stepRepeatRef.current.timeout);
+          if (stepRepeatRef.current.interval) clearInterval(stepRepeatRef.current.interval);
+          stepRepeatRef.current = null;
+        }
+        const stepBack = () => {
+          if (handle1.state.src) handle1.stepFrame(-1);
+          if (handle2.state.src) handle2.stepFrame(-1);
+        };
+        stepBack();
+        const timeout = setTimeout(() => {
+          const interval = setInterval(stepBack, STEP_REPEAT_INTERVAL_MS);
+          if (stepRepeatRef.current) stepRepeatRef.current.interval = interval;
+        }, STEP_REPEAT_DELAY_MS);
+        stepRepeatRef.current = { timeout, interval: null };
         return;
       }
       if (e.code === 'ArrowRight') {
         e.preventDefault();
-        if (handle1.state.src) handle1.stepFrame(1);
-        if (handle2.state.src) handle2.stepFrame(1);
+        if (e.repeat) return;
+        if (stepRepeatRef.current) {
+          clearTimeout(stepRepeatRef.current.timeout);
+          if (stepRepeatRef.current.interval) clearInterval(stepRepeatRef.current.interval);
+          stepRepeatRef.current = null;
+        }
+        const stepFwd = () => {
+          if (handle1.state.src) handle1.stepFrame(1);
+          if (handle2.state.src) handle2.stepFrame(1);
+        };
+        stepFwd();
+        const timeout = setTimeout(() => {
+          const interval = setInterval(stepFwd, STEP_REPEAT_INTERVAL_MS);
+          if (stepRepeatRef.current) stepRepeatRef.current.interval = interval;
+        }, STEP_REPEAT_DELAY_MS);
+        stepRepeatRef.current = { timeout, interval: null };
         return;
       }
 
@@ -301,8 +352,21 @@ export default function App() {
         return;
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+        if (stepRepeatRef.current) {
+          clearTimeout(stepRepeatRef.current.timeout);
+          if (stepRepeatRef.current.interval) clearInterval(stepRepeatRef.current.interval);
+          stepRepeatRef.current = null;
+        }
+      }
+    };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
   }, [hasAnyVideo, globalTogglePlay, handle1, handle2, activeVideo, markup1, markup2]);
 
   return (
@@ -407,7 +471,7 @@ export default function App() {
       <main className="flex-1 min-h-0 flex flex-col">
         <div className="flex-1 min-h-0 w-full max-w-[1800px] mx-auto px-6 py-4 flex flex-col">
           {viewMode === 'side-by-side' ? (
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-hidden" style={{ gridAutoRows: '1fr' }}>
+            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-visible" style={{ gridAutoRows: '1fr' }}>
               <VideoPlayer
                 label="Video 1"
                 handle={handle1}
@@ -421,6 +485,9 @@ export default function App() {
                 onTransformReset={resetTransform1}
                 syncTransform={syncTransform}
                 onSyncToggle={handleSyncToggle}
+                syncGrid={syncGrid}
+                onSyncGridToggle={handleSyncGridToggle}
+                updateGridOverride={updateGrid1}
               />
               <VideoPlayer
                 label="Video 2"
@@ -435,6 +502,9 @@ export default function App() {
                 onTransformReset={resetTransform2}
                 syncTransform={syncTransform}
                 onSyncToggle={handleSyncToggle}
+                syncGrid={syncGrid}
+                onSyncGridToggle={handleSyncGridToggle}
+                updateGridOverride={updateGrid2}
               />
             </div>
           ) : (
@@ -456,6 +526,10 @@ export default function App() {
                 onTransformReset2={resetTransform2}
                 syncTransform={syncTransform}
                 onSyncToggle={handleSyncToggle}
+                syncGrid={syncGrid}
+                onSyncGridToggle={handleSyncGridToggle}
+                updateGrid1={updateGrid1}
+                updateGrid2={updateGrid2}
               />
             </div>
           )}

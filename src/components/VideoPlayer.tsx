@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer';
-import type { MarkupHandle } from '../hooks/useMarkup';
+import { useRepeatWhilePressed } from '../hooks/useRepeatWhilePressed';
+import type { MarkupHandle, GridSettings } from '../hooks/useMarkup';
 import type { ToolStripPanel } from './ToolStrip';
 import ScrubberWithTrim from './ScrubberWithTrim';
 import TransformPanel from './TransformPanel';
@@ -26,6 +27,9 @@ interface VideoPlayerProps {
   onTransformReset?: () => void;
   syncTransform?: boolean;
   onSyncToggle?: (enabled: boolean, current: VideoTransform) => void;
+  syncGrid?: boolean;
+  onSyncGridToggle?: (enabled: boolean, current: GridSettings) => void;
+  updateGridOverride?: (g: Partial<GridSettings>) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -35,13 +39,15 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
 }
 
-export default function VideoPlayer({ label, handle, markupHandle, side, isActive, onActivate, onRemoveVideo, onDropFile, onTransformChange, onTransformReset, syncTransform, onSyncToggle }: VideoPlayerProps) {
+export default function VideoPlayer({ label, handle, markupHandle, side, isActive, onActivate, onRemoveVideo, onDropFile, onTransformChange, onTransformReset, syncTransform, onSyncToggle, syncGrid, onSyncGridToggle, updateGridOverride }: VideoPlayerProps) {
   const videoAR = handle.state.videoWidth && handle.state.videoHeight ? handle.state.videoWidth / handle.state.videoHeight : 0;
   const { state, videoRef, selectFile, clearVideo, togglePlay, scrub, setTrimStart, setTrimEnd, stepFrame, setTransform, resetTransform } = handle;
   const { src: videoSrc, fileName, duration, currentTime, isPlaying, trimStart, trimEnd, transform } = state;
 
   const [activePanel, setActivePanel] = useState<ToolStripPanel | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const repeatBack = useRepeatWhilePressed(() => stepFrame(-1));
+  const repeatFwd = useRepeatWhilePressed(() => stepFrame(1));
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -94,7 +100,13 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
   const popupContent = activePanel === 'transform' ? (
     <TransformPanel embedded transform={transform} onChange={effectiveSetTransform} onReset={effectiveResetTransform} synced={syncTransform} onSyncToggle={onSyncToggle} />
   ) : (activePanel === 'grid' || activePanel === 'line' || activePanel === 'angle' || activePanel === 'text') ? (
-    <MarkupPopupByType markup={markupHandle} type={activePanel} />
+    <MarkupPopupByType
+      markup={markupHandle}
+      type={activePanel}
+      updateGridOverride={activePanel === 'grid' ? updateGridOverride : undefined}
+      syncedGrid={syncGrid}
+      onSyncGridToggle={activePanel === 'grid' ? onSyncGridToggle : undefined}
+    />
   ) : null;
 
   const activeRing = isActive ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
@@ -132,11 +144,11 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
 
   return (
     <div
-      className="flex flex-col h-full min-h-0 overflow-hidden"
+      className="flex flex-col h-full min-h-0 overflow-visible"
       onClick={onActivate}
     >
       {videoSrc ? (
-        <div className="flex flex-1 min-h-0 gap-1 items-stretch">
+        <div className="flex flex-1 min-h-0 gap-2 items-stretch">
           {isLeft && stripColumn}
 
           <div
@@ -214,8 +226,12 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 <span className="text-slate-500">/ {formatTime(Math.max(0, trimEnd - trimStart))}</span>
               </div>
               <div className="flex items-center justify-center gap-3">
-                <button onClick={(e) => { e.stopPropagation(); stepFrame(-1); }} className="p-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800" title="Previous frame">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
+                <button
+                  onPointerDown={(e) => { e.stopPropagation(); repeatBack.onPointerDown(e); }}
+                  className="p-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800 select-none"
+                  title="Previous frame (hold to scrub)"
+                >
+                  <svg className="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors shadow-lg shadow-blue-600/20">
                   {isPlaying ? (
@@ -224,8 +240,12 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                     <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                   )}
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); stepFrame(1); }} className="p-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800" title="Next frame">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+                <button
+                  onPointerDown={(e) => { e.stopPropagation(); repeatFwd.onPointerDown(e); }}
+                  className="p-2 text-slate-400 hover:text-white transition-colors rounded-lg hover:bg-slate-800 select-none"
+                  title="Next frame (hold to scrub)"
+                >
+                  <svg className="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
                 </button>
               </div>
             </>

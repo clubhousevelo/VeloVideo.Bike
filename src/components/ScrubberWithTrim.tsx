@@ -85,6 +85,7 @@ export default function ScrubberWithTrim({
       ? ((currentTime - trimStart) / (trimEnd - trimStart)) * 100
       : 0;
   const trimWidthPercent = trimEndPercent - trimStartPercent;
+  const playheadPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
     <div className={`relative w-full ${trackHeight} ${className}`} ref={trackRef}>
@@ -106,7 +107,14 @@ export default function ScrubberWithTrim({
         }}
       />
 
-      {/* Seek input (playhead) */}
+      {/* Playhead handle (circle on timeline) */}
+      <div
+        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-blue-400 border-2 border-white shadow-md pointer-events-none z-10"
+        style={{ left: `${playheadPercent}%` }}
+        aria-hidden
+      />
+
+      {/* Seek input (invisible, for dragging) */}
       <input
         type="range"
         min={0}

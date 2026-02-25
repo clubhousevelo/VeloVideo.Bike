@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import type { VideoPlayerHandle, VideoTransform } from '../hooks/useVideoPlayer';
+import { useRepeatWhilePressed } from '../hooks/useRepeatWhilePressed';
 import { DEFAULT_TRANSFORM } from '../hooks/useVideoPlayer';
-import type { MarkupHandle } from '../hooks/useMarkup';
+import type { MarkupHandle, GridSettings } from '../hooks/useMarkup';
 import ScrubberWithTrim from './ScrubberWithTrim';
 import TransformPanel from './TransformPanel';
 import MarkupPopupByType from './MarkupPopupByType';
@@ -21,6 +22,8 @@ function formatTime(seconds: number): string {
 function VideoControls({ label, handle, onRemove }: { label: string; handle: VideoPlayerHandle; onRemove?: () => void }) {
   const { state, selectFile, clearVideo, togglePlay, scrub, setTrimStart, setTrimEnd, stepFrame } = handle;
   const handleRemove = () => { clearVideo(); onRemove?.(); };
+  const repeatBack = useRepeatWhilePressed(() => stepFrame(-1));
+  const repeatFwd = useRepeatWhilePressed(() => stepFrame(1));
 
   if (!state.src) {
     return (
@@ -61,8 +64,8 @@ function VideoControls({ label, handle, onRemove }: { label: string; handle: Vid
             <span className="text-slate-500">/ {formatTime(Math.max(0, state.trimEnd - state.trimStart))}</span>
           </div>
           <div className="flex items-center justify-center gap-3">
-            <button onClick={() => stepFrame(-1)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
+            <button onPointerDown={(e) => repeatBack.onPointerDown(e)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Previous frame (hold to scrub)">
+              <svg className="w-3.5 h-3.5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
             </button>
             <button onClick={togglePlay} className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors">
               {state.isPlaying ? (
@@ -71,8 +74,8 @@ function VideoControls({ label, handle, onRemove }: { label: string; handle: Vid
                 <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
               )}
             </button>
-            <button onClick={() => stepFrame(1)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800">
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+            <button onPointerDown={(e) => repeatFwd.onPointerDown(e)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Next frame (hold to scrub)">
+              <svg className="w-3.5 h-3.5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
             </button>
           </div>
         </>
@@ -109,9 +112,13 @@ interface OverlayViewProps {
   onTransformReset2?: () => void;
   syncTransform?: boolean;
   onSyncToggle?: (enabled: boolean, current: VideoTransform) => void;
+  syncGrid?: boolean;
+  onSyncGridToggle?: (enabled: boolean, current: GridSettings) => void;
+  updateGrid1?: (g: Partial<GridSettings>) => void;
+  updateGrid2?: (g: Partial<GridSettings>) => void;
 }
 
-export default function OverlayView({ handle1, handle2, markupHandle1, markupHandle2, activeVideo, onActivate1, onActivate2, onRemoveVideo1, onRemoveVideo2, onDropFile, onTransformChange1, onTransformReset1, onTransformChange2, onTransformReset2, syncTransform, onSyncToggle }: OverlayViewProps) {
+export default function OverlayView({ handle1, handle2, markupHandle1, markupHandle2, activeVideo, onActivate1, onActivate2, onRemoveVideo1, onRemoveVideo2, onDropFile, onTransformChange1, onTransformReset1, onTransformChange2, onTransformReset2, syncTransform, onSyncToggle, syncGrid, onSyncGridToggle, updateGrid1, updateGrid2 }: OverlayViewProps) {
   const [blendPosition, setBlendPosition] = useState(50);
   const [activePanel1, setActivePanel1] = useState<ToolStripPanel | null>(null);
   const [activePanel2, setActivePanel2] = useState<ToolStripPanel | null>(null);
@@ -205,18 +212,30 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const popup1 = activePanel1 === 'transform' ? (
     <TransformPanel embedded transform={handle1.state.transform} onChange={setTransform1} onReset={resetTransform1} synced={syncTransform} onSyncToggle={onSyncToggle} />
   ) : (activePanel1 === 'grid' || activePanel1 === 'line' || activePanel1 === 'angle' || activePanel1 === 'text') ? (
-    <MarkupPopupByType markup={markupHandle1} type={activePanel1} />
+    <MarkupPopupByType
+      markup={markupHandle1}
+      type={activePanel1}
+      updateGridOverride={activePanel1 === 'grid' ? updateGrid1 : undefined}
+      syncedGrid={syncGrid}
+      onSyncGridToggle={activePanel1 === 'grid' ? onSyncGridToggle : undefined}
+    />
   ) : null;
 
   const popup2 = activePanel2 === 'transform' ? (
     <TransformPanel embedded transform={handle2.state.transform} onChange={setTransform2} onReset={resetTransform2} synced={syncTransform} onSyncToggle={onSyncToggle} />
   ) : (activePanel2 === 'grid' || activePanel2 === 'line' || activePanel2 === 'angle' || activePanel2 === 'text') ? (
-    <MarkupPopupByType markup={markupHandle2} type={activePanel2} />
+    <MarkupPopupByType
+      markup={markupHandle2}
+      type={activePanel2}
+      updateGridOverride={activePanel2 === 'grid' ? updateGrid2 : undefined}
+      syncedGrid={syncGrid}
+      onSyncGridToggle={activePanel2 === 'grid' ? onSyncGridToggle : undefined}
+    />
   ) : null;
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-1 min-h-0 gap-1 items-stretch">
+      <div className="flex flex-1 min-h-0 gap-2 items-stretch">
         {/* Left strip: V1 tools */}
         <div ref={stripRef1} className={`relative shrink-0 flex flex-col h-full gap-1 rounded-lg transition-shadow ${activeRing1}`} onClick={onActivate1}>
           <ToolStrip
@@ -274,7 +293,14 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
         >
           <div className="absolute inset-0">
             {handle1.state.src && (
-              <div className="absolute inset-0">
+              <div
+                className="absolute inset-0"
+                style={{
+                  opacity: blendPosition === 100 ? 0 : 1,
+                  zIndex: activeVideo === 1 ? 10 : 0,
+                  pointerEvents: blendPosition === 100 ? 'none' : undefined,
+                }}
+              >
                 {handle1.state.mediaType === 'image' ? (
                   <img
                     src={handle1.state.src}
@@ -300,14 +326,22 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                 )}
                 <MarkupOverlay
                   handle={markupHandle1}
-                  transform={effectiveTransform1}
+                  transform={t1}
                   videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
+                  correctionScale={correctionScale}
                 />
               </div>
             )}
 
             {handle2.state.src && (
-              <div className="absolute inset-0" style={{ opacity: opacity2 }}>
+              <div
+                className="absolute inset-0"
+                style={{
+                  opacity: blendPosition === 0 ? 0 : blendPosition === 100 ? 0.9999 : opacity2,
+                  zIndex: activeVideo === 2 ? 10 : 0,
+                  pointerEvents: blendPosition === 0 ? 'none' : undefined,
+                }}
+              >
                 {handle2.state.mediaType === 'image' ? (
                   <img
                     src={handle2.state.src}
@@ -333,8 +367,9 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                 )}
                 <MarkupOverlay
                   handle={markupHandle2}
-                  transform={effectiveTransform2}
+                  transform={t2}
                   videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
+                  correctionScale={correctionScale}
                 />
               </div>
             )}
@@ -344,13 +379,6 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                 Select videos below to begin
               </div>
             )}
-          </div>
-
-          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-0.5 rounded pointer-events-none">
-            V1: {100 - Math.round(opacity2 * 100)}%
-          </div>
-          <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-[10px] text-white px-2 py-0.5 rounded pointer-events-none">
-            V2: {Math.round(opacity2 * 100)}%
           </div>
 
           {/* Drag-and-drop zone indicators */}
@@ -445,9 +473,10 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
         </div>
       </div>
 
-      {/* Opacity blend slider */}
+      {/* Opacity blend slider: percentages left of V1, right of V2 */}
       <div className="mt-2 flex justify-center shrink-0">
-        <div className="flex items-center gap-3 w-64">
+        <div className="flex items-center gap-3 w-72">
+          <span className="text-xs text-slate-400 tabular-nums w-8 text-right shrink-0">{100 - Math.round(opacity2 * 100)}%</span>
           <span className="text-xs text-blue-400 font-medium shrink-0">V1</span>
           <input
             type="range"
@@ -458,6 +487,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             className="flex-1"
           />
           <span className="text-xs text-purple-400 font-medium shrink-0">V2</span>
+          <span className="text-xs text-slate-400 tabular-nums w-8 shrink-0">{Math.round(opacity2 * 100)}%</span>
         </div>
       </div>
 

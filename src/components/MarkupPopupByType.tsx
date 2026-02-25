@@ -1,9 +1,13 @@
 import { useEffect } from 'react';
-import type { MarkupHandle } from '../hooks/useMarkup';
+import type { MarkupHandle, GridSettings } from '../hooks/useMarkup';
 
 interface MarkupPopupByTypeProps {
   markup: MarkupHandle;
   type: 'grid' | 'line' | 'angle' | 'text';
+  /** When provided, used instead of markup.updateGrid for grid panel (enables sync) */
+  updateGridOverride?: (g: Partial<GridSettings>) => void;
+  syncedGrid?: boolean;
+  onSyncGridToggle?: (enabled: boolean, current: GridSettings) => void;
 }
 
 const panelClass = 'min-w-[240px] max-h-[min(65vh,480px)] overflow-y-auto bg-slate-900/85 backdrop-blur-sm border border-slate-600/50 rounded-lg shadow-xl p-2.5 space-y-2.5';
@@ -39,8 +43,9 @@ function ColorRow({ value, onChange }: { value: string; onChange: (c: string) =>
   );
 }
 
-export default function MarkupPopupByType({ markup, type }: MarkupPopupByTypeProps) {
+export default function MarkupPopupByType({ markup, type, updateGridOverride, syncedGrid, onSyncGridToggle }: MarkupPopupByTypeProps) {
   const { state, setTool, setSelected, updateGrid, setActiveColor, setLineWidth, setTextSize, removeItem, updateLine, updateAngle, updateText } = markup;
+  const gridUpdater = (type === 'grid' && updateGridOverride) ? updateGridOverride : updateGrid;
 
   // Activate drawing tool when popup opens; reset on close/unmount
   useEffect(() => {
@@ -56,37 +61,45 @@ export default function MarkupPopupByType({ markup, type }: MarkupPopupByTypePro
         <div className="flex items-center justify-between">
           <span className="text-[10px] text-slate-400">Show grid</span>
           <label className="flex items-center gap-1.5 cursor-pointer">
-            <input type="checkbox" checked={state.grid.show} onChange={(e) => updateGrid({ show: e.target.checked })} className="accent-blue-500 cursor-pointer" />
+            <input type="checkbox" checked={state.grid.show} onChange={(e) => gridUpdater({ show: e.target.checked })} className="accent-blue-500 cursor-pointer" />
           </label>
         </div>
         {state.grid.show && (
           <div className="space-y-2">
             <div className="flex items-center gap-1">
               {(['both', 'horizontal', 'vertical'] as const).map((m) => (
-                <button key={m} onClick={() => updateGrid({ mode: m })} className={`px-2 py-0.5 text-[9px] rounded capitalize ${state.grid.mode === m ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>{m}</button>
+                <button key={m} onClick={() => gridUpdater({ mode: m })} className={`px-2 py-0.5 text-[9px] rounded capitalize ${state.grid.mode === m ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>{m}</button>
               ))}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[9px] text-slate-500 w-12 shrink-0">Spacing</span>
-              <input type="range" min={10} max={200} step={1} value={state.grid.spacingPx} onChange={(e) => updateGrid({ spacingPx: parseInt(e.target.value) })} className="flex-1" />
+              <input type="range" min={10} max={200} step={1} value={state.grid.spacingPx} onChange={(e) => gridUpdater({ spacingPx: parseInt(e.target.value) })} className="flex-1" />
               <span className="text-[9px] text-slate-300 w-9 text-right">{state.grid.spacingPx}px</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[9px] text-slate-500 w-12 shrink-0">Origin X</span>
-              <input type="range" min={-300} max={300} step={1} value={state.grid.originX} onChange={(e) => updateGrid({ originX: parseInt(e.target.value) })} className="flex-1" />
+              <input type="range" min={-300} max={300} step={1} value={state.grid.originX} onChange={(e) => gridUpdater({ originX: parseInt(e.target.value) })} className="flex-1" />
               <span className="text-[9px] text-slate-300 w-9 text-right">{state.grid.originX}px</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[9px] text-slate-500 w-12 shrink-0">Origin Y</span>
-              <input type="range" min={-300} max={300} step={1} value={state.grid.originY} onChange={(e) => updateGrid({ originY: parseInt(e.target.value) })} className="flex-1" />
+              <input type="range" min={-300} max={300} step={1} value={state.grid.originY} onChange={(e) => gridUpdater({ originY: parseInt(e.target.value) })} className="flex-1" />
               <span className="text-[9px] text-slate-300 w-9 text-right">{state.grid.originY}px</span>
             </div>
             <div className="flex items-center gap-2">
-              <input type="color" value={state.grid.color} onChange={(e) => updateGrid({ color: e.target.value })} className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent" />
+              <input type="color" value={state.grid.color} onChange={(e) => gridUpdater({ color: e.target.value })} className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent" />
               <span className="text-[9px] text-slate-500">Opacity</span>
-              <input type="range" min={0.05} max={1} step={0.05} value={state.grid.opacity} onChange={(e) => updateGrid({ opacity: parseFloat(e.target.value) })} className="flex-1" />
+              <input type="range" min={0.05} max={1} step={0.05} value={state.grid.opacity} onChange={(e) => gridUpdater({ opacity: parseFloat(e.target.value) })} className="flex-1" />
               <span className="text-[9px] text-slate-300 w-8 text-right">{Math.round(state.grid.opacity * 100)}%</span>
             </div>
+          </div>
+        )}
+        {onSyncGridToggle && (
+          <div className="flex items-center pt-1.5 border-t border-slate-700/60 mt-1.5">
+            <label className={`flex items-center gap-2 cursor-pointer text-[10px] ${syncedGrid ? 'text-blue-400' : 'text-slate-500'} hover:text-slate-300 transition-colors`}>
+              <input type="checkbox" checked={!!syncedGrid} onChange={(e) => onSyncGridToggle(e.target.checked, state.grid)} className="accent-blue-500 cursor-pointer" />
+              Sync Grid
+            </label>
           </div>
         )}
       </div>

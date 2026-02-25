@@ -270,6 +270,7 @@ export function useMarkup(): MarkupHandle {
         lines: [],
         angles: [],
         texts: [],
+        grid: DEFAULT_GRID,
         selected: null,
         undoStack: [...prev.undoStack, snap].slice(-MAX_UNDO),
         redoStack: [],
