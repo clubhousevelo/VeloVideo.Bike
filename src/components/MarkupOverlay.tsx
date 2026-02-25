@@ -397,6 +397,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
   const handleMouseLeave = useCallback(() => { setHoverPoint(null); }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if ((e.target as Element)?.closest?.('[data-endpoint-handle]')) return;
     const canvasPt = getCanvasPoint(e);
     if (state.tool === 'none') {
       const hit = hitTest(canvasPt);
@@ -642,8 +643,8 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
               )}
               {isSel && (
                 <>
-                  <circle cx={p1.x} cy={p1.y} r={HANDLE_R} fill="white" stroke={line.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpLineDrag(line.id, 0)} />
-                  <circle cx={p2.x} cy={p2.y} r={HANDLE_R} fill="white" stroke={line.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpLineDrag(line.id, 1)} />
+                  <circle data-endpoint-handle cx={p1.x} cy={p1.y} r={HANDLE_R} fill="white" stroke={line.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpLineDrag(line.id, 0)} />
+                  <circle data-endpoint-handle cx={p2.x} cy={p2.y} r={HANDLE_R} fill="white" stroke={line.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpLineDrag(line.id, 1)} />
                 </>
               )}
             </g>
@@ -671,7 +672,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
               {isSel ? (
                 <>
                   {([{ p: vp1, i: 0 }, { p: vvx, i: 1 }, { p: vp2, i: 2 }] as const).map(({ p, i }) => (
-                    <circle key={i} cx={p.x} cy={p.y} r={HANDLE_R} fill="white" stroke={angle.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpAngleDrag(angle.id, i)} />
+                    <circle key={i} data-endpoint-handle cx={p.x} cy={p.y} r={HANDLE_R} fill="white" stroke={angle.color} strokeWidth={2} style={{ cursor: 'crosshair' }} onPointerDown={startEpAngleDrag(angle.id, i)} />
                   ))}
                 </>
               ) : (
