@@ -95,6 +95,26 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
   const stripOnLeft = isLeft || (isNarrow && !isLeft);
   const stripOnRight = !isLeft && !isNarrow;
   const stripRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) setCanvasSize({ w: width, h: height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // SBS: at 1x, content fills the canvas height; cap at native resolution when media is smaller
+  const isSmallerThanCanvas = handle.state.videoWidth > 0 && handle.state.videoHeight > 0 &&
+    (handle.state.videoWidth < canvasSize.w || handle.state.videoHeight < canvasSize.h);
+  const mediaStyle = isSmallerThanCanvas
+    ? { maxWidth: handle.state.videoWidth, maxHeight: handle.state.videoHeight, objectFit: 'contain' as const, margin: 'auto' as const }
+    : {};
 
   // Close popup when clicking outside the strip
   useEffect(() => {
@@ -172,7 +192,8 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
 
           <div className="flex flex-col flex-1 min-w-0 min-h-0">
             <div
-              className={`relative flex-1 min-h-0 bg-black rounded-lg overflow-hidden ${dragOver ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
+              ref={canvasRef}
+              className={`relative flex-1 min-h-0 bg-black rounded-lg overflow-hidden flex items-center justify-center ${dragOver ? 'ring-2 ring-blue-400 ring-inset' : ''}`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -182,22 +203,24 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
               <img
                 src={videoSrc}
                 alt=""
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
                 style={{
                   transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
                   filter: imageAdjustToFilter(imageAdjust, gammaFilterId),
+                  ...mediaStyle,
                 }}
               />
             ) : (
               <video
                 ref={videoRef}
                 src={videoSrc}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
                 style={{
                   transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
                   filter: imageAdjustToFilter(imageAdjust, gammaFilterId),
+                  ...mediaStyle,
                 }}
                 playsInline
                 preload="auto"

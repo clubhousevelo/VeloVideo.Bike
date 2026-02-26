@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useId } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import type { VideoPlayerHandle, VideoTransform, ImageAdjust } from '../hooks/useVideoPlayer';
 import { useRepeatWhilePressed } from '../hooks/useRepeatWhilePressed';
 import { DEFAULT_TRANSFORM, DEFAULT_IMAGE_ADJUST } from '../hooks/useVideoPlayer';
@@ -153,7 +153,14 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  const hasSrc1 = !!handle1.state.src;
+  const hasSrc2 = !!handle2.state.src;
+  const bothLoaded = hasSrc1 && hasSrc2;
+
   const opacity2 = blendPosition / 100;
+  const effectiveOpacity1 = !hasSrc2 ? 1 : (blendPosition === 100 ? 0 : 1);
+  const effectiveOpacity2 = !hasSrc1 ? 1 : (blendPosition === 0 ? 0 : blendPosition === 100 ? 0.9999 : opacity2);
+
   const t1 = handle1.state.transform;
   const t2 = handle2.state.transform;
   const adj1 = handle1.state.imageAdjust;
@@ -181,8 +188,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const setImageAdjust2 = onImageAdjustChange2 ?? handle2.setImageAdjust;
   const resetImageAdjust1 = onImageAdjustReset1 ?? handle1.resetImageAdjust;
   const resetImageAdjust2 = onImageAdjustReset2 ?? handle2.resetImageAdjust;
-  const activeRing1 = activeVideo === 1 ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
-  const activeRing2 = activeVideo === 2 ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
+  const activeRing1 = hasSrc1 && activeVideo === 1 ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
+  const activeRing2 = hasSrc2 && activeVideo === 2 ? 'ring-2 ring-blue-400/60 ring-offset-1 ring-offset-slate-950' : '';
 
   const stripRef1 = useRef<HTMLDivElement>(null);
   const stripRef2 = useRef<HTMLDivElement>(null);
@@ -200,6 +207,11 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   }, [activePanel1, activePanel2]);
 
   useEffect(() => {
+    if (!hasSrc1) setActivePanel1(null);
+    if (!hasSrc2) setActivePanel2(null);
+  }, [hasSrc1, hasSrc2]);
+
+  useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
@@ -210,43 +222,12 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     return () => ro.disconnect();
   }, []);
 
-  // Corrective scale: overlay canvas is wider than a SBS panel, so object-contain
-  // renders the video at a larger base size. This factor compensates so that the
-  // user's zoom level (e.g. 2×) produces the same visible crop in both modes.
-  // SBS panels have tool strips and bottom controls that reduce the video area;
-  // we account for that so overlay matches SBS framing.
-  const correctionScale = useMemo(() => {
-    const { w, h } = canvasSize;
-    if (w === 0 || h === 0) return 1;
-    const ar1 = handle1.state.videoWidth && handle1.state.videoHeight
-      ? handle1.state.videoWidth / handle1.state.videoHeight : 0;
-    const ar2 = handle2.state.videoWidth && handle2.state.videoHeight
-      ? handle2.state.videoWidth / handle2.state.videoHeight : 0;
-    const videoAR = ar1 || ar2;
-    if (videoAR <= 0) return 1;
+  // Overlay: at 1x, content fills the canvas height (no SBS sync). Use object-cover
+  // so video fills the container; cap at native resolution when media is smaller than canvas.
+  const correctionScale = 1;
 
-    // SBS video area: strip (~36px) and gap reduce width; bottom controls (~70px) reduce height
-    const SBS_STRIP_AND_GAP = 44;
-    const SBS_BOTTOM_CONTROLS = 70;
-    const sbsW = Math.max(10, w / 2 - SBS_STRIP_AND_GAP);
-    const sbsH = Math.max(10, h - SBS_BOTTOM_CONTROLS);
-    const sbsVideoH = sbsW / sbsH > videoAR ? sbsH : sbsW / videoAR;
-
-    // object-contain height in the full overlay canvas
-    const overlayVideoH = w / h > videoAR ? h : w / videoAR;
-
-    return overlayVideoH > 0 ? sbsVideoH / overlayVideoH : 1;
-  }, [canvasSize, handle1.state.videoWidth, handle1.state.videoHeight, handle2.state.videoWidth, handle2.state.videoHeight]);
-
-  // Effective transforms: correctionScale applied to scale only (display-only, not stored)
-  const effectiveTransform1 = useMemo<typeof t1>(
-    () => ({ ...t1, scale: t1.scale * correctionScale }),
-    [t1, correctionScale]
-  );
-  const effectiveTransform2 = useMemo<typeof t2>(
-    () => ({ ...t2, scale: t2.scale * correctionScale }),
-    [t2, correctionScale]
-  );
+  const effectiveTransform1 = t1;
+  const effectiveTransform2 = t2;
 
   const popup1 = activePanel1 === 'transform' ? (
     <TransformPanel embedded transform={handle1.state.transform} onChange={setTransform1} onReset={resetTransform1} synced={syncTransform} onSyncToggle={onSyncToggle} />
@@ -280,7 +261,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     <div className="flex flex-col h-full">
       <div className="flex flex-1 min-h-0 gap-2 items-stretch">
         {/* Left strip: V1 tools */}
-        <div ref={stripRef1} className="relative shrink-0 flex flex-col items-start gap-1" onClick={onActivate1}>
+        <div ref={stripRef1} className={`relative shrink-0 flex flex-col items-start gap-1 transition-opacity ${hasSrc1 ? '' : 'opacity-40 pointer-events-none'}`} onClick={hasSrc1 ? onActivate1 : undefined}>
           <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing1}`} data-tooltip-side="right">
             <ToolStrip
               side="left"
@@ -341,9 +322,9 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             <GammaFilterSvg id={gammaFilterId2} gamma={adj2.gamma} />
             {handle1.state.src && (
               <div
-                className="absolute inset-0"
+                className="absolute inset-0 flex items-center justify-center"
                 style={{
-                  opacity: blendPosition === 100 ? 0 : 1,
+                  opacity: effectiveOpacity1,
                   zIndex: blendPosition >= 1 && blendPosition <= 99 ? 0 : activeVideo === 1 ? 10 : 0,
                   pointerEvents: blendPosition === 100 ? 'none' : undefined,
                 }}
@@ -352,22 +333,28 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   <img
                     src={handle1.state.src}
                     alt=""
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     style={{
                       transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
                       filter: imageAdjustToFilter(adj1, gammaFilterId1),
+                      ...(handle1.state.videoWidth > 0 && handle1.state.videoHeight > 0 && (handle1.state.videoWidth < canvasSize.w || handle1.state.videoHeight < canvasSize.h)
+                        ? { maxWidth: handle1.state.videoWidth, maxHeight: handle1.state.videoHeight, objectFit: 'contain', margin: 'auto' }
+                        : {}),
                     }}
                   />
                 ) : (
                   <video
                     ref={handle1.videoRef}
                     src={handle1.state.src}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     style={{
                       transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
                       filter: imageAdjustToFilter(adj1, gammaFilterId1),
+                      ...(handle1.state.videoWidth > 0 && handle1.state.videoHeight > 0 && (handle1.state.videoWidth < canvasSize.w || handle1.state.videoHeight < canvasSize.h)
+                        ? { maxWidth: handle1.state.videoWidth, maxHeight: handle1.state.videoHeight, objectFit: 'contain', margin: 'auto' }
+                        : {}),
                     }}
                     playsInline
                     preload="auto"
@@ -386,9 +373,9 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
 
             {handle2.state.src && (
               <div
-                className="absolute inset-0"
+                className="absolute inset-0 flex items-center justify-center"
                 style={{
-                  opacity: blendPosition === 0 ? 0 : blendPosition === 100 ? 0.9999 : opacity2,
+                  opacity: effectiveOpacity2,
                   zIndex: blendPosition >= 1 ? 10 : 0,
                   pointerEvents: blendPosition === 0 ? 'none' : (blendPosition >= 1 && blendPosition <= 99 && activeVideo === 1 ? 'none' : undefined),
                 }}
@@ -397,22 +384,28 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   <img
                     src={handle2.state.src}
                     alt=""
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     style={{
                       transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
                       filter: imageAdjustToFilter(adj2, gammaFilterId2),
+                      ...(handle2.state.videoWidth > 0 && handle2.state.videoHeight > 0 && (handle2.state.videoWidth < canvasSize.w || handle2.state.videoHeight < canvasSize.h)
+                        ? { maxWidth: handle2.state.videoWidth, maxHeight: handle2.state.videoHeight, objectFit: 'contain', margin: 'auto' }
+                        : {}),
                     }}
                   />
                 ) : (
                   <video
                     ref={handle2.videoRef}
                     src={handle2.state.src}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                     style={{
                       transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
                       filter: imageAdjustToFilter(adj2, gammaFilterId2),
+                      ...(handle2.state.videoWidth > 0 && handle2.state.videoHeight > 0 && (handle2.state.videoWidth < canvasSize.w || handle2.state.videoHeight < canvasSize.h)
+                        ? { maxWidth: handle2.state.videoWidth, maxHeight: handle2.state.videoHeight, objectFit: 'contain', margin: 'auto' }
+                        : {}),
                     }}
                     playsInline
                     preload="auto"
@@ -502,7 +495,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
         </div>
 
         {/* Right strip: V2 tools */}
-        <div ref={stripRef2} className="relative shrink-0 flex flex-col items-start gap-1" onClick={onActivate2}>
+        <div ref={stripRef2} className={`relative shrink-0 flex flex-col items-start gap-1 transition-opacity ${hasSrc2 ? '' : 'opacity-40 pointer-events-none'}`} onClick={hasSrc2 ? onActivate2 : undefined}>
           <div className={`shrink-0 flex flex-col gap-1 rounded-lg transition-shadow self-start ${activeRing2}`} data-tooltip-side="left">
             <ToolStrip
               side="right"
@@ -531,7 +524,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
       </div>
 
       {/* Opacity blend slider: percentages left of V1, right of V2 */}
-      <div className="mt-2 flex justify-center shrink-0">
+      <div className={`mt-2 flex justify-center shrink-0 transition-opacity ${bothLoaded ? '' : 'opacity-50 pointer-events-none'}`}>
         <div className="flex items-center gap-3 w-72">
           <span className="text-xs text-slate-400 tabular-nums w-8 text-right shrink-0">{100 - Math.round(opacity2 * 100)}%</span>
           <span className="text-xs text-blue-400 font-medium shrink-0">V1</span>
@@ -541,7 +534,8 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             max={100}
             value={blendPosition}
             onChange={(e) => setBlendPosition(parseInt(e.target.value))}
-            className="flex-1"
+            disabled={!bothLoaded}
+            className="flex-1 disabled:cursor-not-allowed"
           />
           <span className="text-xs text-purple-400 font-medium shrink-0">V2</span>
           <span className="text-xs text-slate-400 tabular-nums w-8 shrink-0">{Math.round(opacity2 * 100)}%</span>

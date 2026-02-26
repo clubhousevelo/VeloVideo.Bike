@@ -53,7 +53,7 @@ video::-webkit-media-controls {
   display: none !important;
 }
 
-/* Fast tooltips: appear after ~150ms hover (vs native title ~1s) */
+/* Fast tooltips: appear after ~150ms hover, fade out after 3s */
 [data-tooltip] {
   position: relative;
 }
@@ -70,12 +70,18 @@ video::-webkit-media-controls {
   border: 1px solid #475569;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   opacity: 0;
-  transition: opacity 0.12s ease 0.15s;
+  transition: opacity 0.15s ease;
   pointer-events: none;
   z-index: 1000;
 }
 [data-tooltip]:hover::after {
-  opacity: 1;
+  animation: tooltipFade 3.3s ease forwards;
+}
+@keyframes tooltipFade {
+  0% { opacity: 0 }
+  4.5% { opacity: 1 }
+  95.5% { opacity: 1 }
+  100% { opacity: 0 }
 }
 
 /* Left strip: tooltip to the right of the button */

@@ -396,9 +396,17 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
 
   const handleMouseLeave = useCallback(() => { setHoverPoint(null); }, []);
 
+  const syncCursorFromEvent = useCallback((e: { clientX: number; clientY: number }) => {
+    const pt = getCanvasPoint(e as unknown as React.MouseEvent);
+    setCursorViewBox(pt);
+  }, [getCanvasPoint]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as Element)?.closest?.('[data-endpoint-handle]')) return;
     const canvasPt = getCanvasPoint(e);
+    if (state.tool === 'line' || state.tool === 'angle' || state.tool === 'measure' || drag?.kind === 'ep-line' || drag?.kind === 'ep-angle') {
+      setCursorViewBox(canvasPt);
+    }
+    if ((e.target as Element)?.closest?.('[data-endpoint-handle]')) return;
     if (state.tool === 'none') {
       const hit = hitTest(canvasPt);
       if (hit) {
@@ -421,7 +429,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       return;
     }
     e.stopPropagation();
-  }, [state.tool, state.lines, state.angles, state.texts, getCanvasPoint, hitTest, setSelected, snapshotForUndo]);
+  }, [state.tool, state.lines, state.angles, state.texts, drag, getCanvasPoint, hitTest, setSelected, snapshotForUndo]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     if (!onOpenToolPanel) return;
@@ -534,17 +542,21 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
 
   const startEpLineDrag = useCallback((id: string, pointIndex: 0 | 1) => (e: React.PointerEvent) => {
     e.stopPropagation();
+    const pt = getCanvasPoint(e as unknown as React.MouseEvent);
+    setCursorViewBox(pt);
     snapshotForUndo();
     setDrag({ kind: 'ep-line', id, pointIndex });
     containerRef.current?.setPointerCapture?.(e.pointerId);
-  }, [snapshotForUndo]);
+  }, [getCanvasPoint, snapshotForUndo]);
 
   const startEpAngleDrag = useCallback((id: string, pointIndex: 0 | 1 | 2) => (e: React.PointerEvent) => {
     e.stopPropagation();
+    const pt = getCanvasPoint(e as unknown as React.MouseEvent);
+    setCursorViewBox(pt);
     snapshotForUndo();
     setDrag({ kind: 'ep-angle', id, pointIndex });
     containerRef.current?.setPointerCapture?.(e.pointerId);
-  }, [snapshotForUndo]);
+  }, [getCanvasPoint, snapshotForUndo]);
 
   useEffect(() => {
     if (!drag) return;
@@ -586,6 +598,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       className="absolute inset-0"
       style={{ pointerEvents: isToolActive || hasContent ? 'all' : 'none' }}
       onPointerMove={handleMouseMove as React.PointerEventHandler}
+      onPointerEnter={(e) => { if (state.tool === 'line' || state.tool === 'angle' || state.tool === 'measure' || drag?.kind === 'ep-line' || drag?.kind === 'ep-angle') syncCursorFromEvent(e); }}
     >
       <svg
         ref={svgRef}
