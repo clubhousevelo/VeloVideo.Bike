@@ -112,8 +112,11 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
   // SBS: at 1x, content fills the canvas height; cap at native resolution when media is smaller
   const isSmallerThanCanvas = handle.state.videoWidth > 0 && handle.state.videoHeight > 0 &&
     (handle.state.videoWidth < canvasSize.w || handle.state.videoHeight < canvasSize.h);
+  const mediaClassName = isSmallerThanCanvas
+    ? 'w-full h-full object-contain'
+    : 'h-full w-auto';
   const mediaStyle = isSmallerThanCanvas
-    ? { maxWidth: handle.state.videoWidth, maxHeight: handle.state.videoHeight, objectFit: 'contain' as const, margin: 'auto' as const }
+    ? { maxWidth: handle.state.videoWidth, maxHeight: handle.state.videoHeight, margin: 'auto' as const }
     : {};
 
   // Close popup when clicking outside the strip
@@ -203,7 +206,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
               <img
                 src={videoSrc}
                 alt=""
-                className="w-full h-full object-cover"
+                className={mediaClassName}
                 style={{
                   transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
@@ -215,7 +218,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
               <video
                 ref={videoRef}
                 src={videoSrc}
-                className="w-full h-full object-cover"
+                className={mediaClassName}
                 style={{
                   transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',

@@ -322,7 +322,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             <GammaFilterSvg id={gammaFilterId2} gamma={adj2.gamma} />
             {handle1.state.src && (
               <div
-                className="absolute inset-0 flex items-center justify-center"
+                className="absolute inset-0 flex items-center justify-center overflow-hidden"
                 style={{
                   opacity: effectiveOpacity1,
                   zIndex: blendPosition >= 1 && blendPosition <= 99 ? 0 : activeVideo === 1 ? 10 : 0,
@@ -333,13 +333,15 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   <img
                     src={handle1.state.src}
                     alt=""
-                    className="w-full h-full object-cover"
+                    className={handle1.state.videoWidth > 0 && handle1.state.videoHeight > 0 && (handle1.state.videoWidth < canvasSize.w || handle1.state.videoHeight < canvasSize.h)
+                      ? 'w-full h-full object-contain'
+                      : 'h-full w-auto'}
                     style={{
                       transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
                       filter: imageAdjustToFilter(adj1, gammaFilterId1),
                       ...(handle1.state.videoWidth > 0 && handle1.state.videoHeight > 0 && (handle1.state.videoWidth < canvasSize.w || handle1.state.videoHeight < canvasSize.h)
-                        ? { maxWidth: handle1.state.videoWidth, maxHeight: handle1.state.videoHeight, objectFit: 'contain', margin: 'auto' }
+                        ? { maxWidth: handle1.state.videoWidth, maxHeight: handle1.state.videoHeight, margin: 'auto' }
                         : {}),
                     }}
                   />
@@ -347,13 +349,15 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   <video
                     ref={handle1.videoRef}
                     src={handle1.state.src}
-                    className="w-full h-full object-cover"
+                    className={handle1.state.videoWidth > 0 && handle1.state.videoHeight > 0 && (handle1.state.videoWidth < canvasSize.w || handle1.state.videoHeight < canvasSize.h)
+                      ? 'w-full h-full object-contain'
+                      : 'h-full w-auto'}
                     style={{
                       transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
                       filter: imageAdjustToFilter(adj1, gammaFilterId1),
                       ...(handle1.state.videoWidth > 0 && handle1.state.videoHeight > 0 && (handle1.state.videoWidth < canvasSize.w || handle1.state.videoHeight < canvasSize.h)
-                        ? { maxWidth: handle1.state.videoWidth, maxHeight: handle1.state.videoHeight, objectFit: 'contain', margin: 'auto' }
+                        ? { maxWidth: handle1.state.videoWidth, maxHeight: handle1.state.videoHeight, margin: 'auto' }
                         : {}),
                     }}
                     playsInline
@@ -373,7 +377,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
 
             {handle2.state.src && (
               <div
-                className="absolute inset-0 flex items-center justify-center"
+                className="absolute inset-0 flex items-center justify-center overflow-hidden"
                 style={{
                   opacity: effectiveOpacity2,
                   zIndex: blendPosition >= 1 ? 10 : 0,
@@ -384,13 +388,15 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   <img
                     src={handle2.state.src}
                     alt=""
-                    className="w-full h-full object-cover"
+                    className={handle2.state.videoWidth > 0 && handle2.state.videoHeight > 0 && (handle2.state.videoWidth < canvasSize.w || handle2.state.videoHeight < canvasSize.h)
+                      ? 'w-full h-full object-contain'
+                      : 'h-full w-auto'}
                     style={{
                       transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
                       filter: imageAdjustToFilter(adj2, gammaFilterId2),
                       ...(handle2.state.videoWidth > 0 && handle2.state.videoHeight > 0 && (handle2.state.videoWidth < canvasSize.w || handle2.state.videoHeight < canvasSize.h)
-                        ? { maxWidth: handle2.state.videoWidth, maxHeight: handle2.state.videoHeight, objectFit: 'contain', margin: 'auto' }
+                        ? { maxWidth: handle2.state.videoWidth, maxHeight: handle2.state.videoHeight, margin: 'auto' }
                         : {}),
                     }}
                   />
@@ -398,13 +404,15 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   <video
                     ref={handle2.videoRef}
                     src={handle2.state.src}
-                    className="w-full h-full object-cover"
+                    className={handle2.state.videoWidth > 0 && handle2.state.videoHeight > 0 && (handle2.state.videoWidth < canvasSize.w || handle2.state.videoHeight < canvasSize.h)
+                      ? 'w-full h-full object-contain'
+                      : 'h-full w-auto'}
                     style={{
                       transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
                       filter: imageAdjustToFilter(adj2, gammaFilterId2),
                       ...(handle2.state.videoWidth > 0 && handle2.state.videoHeight > 0 && (handle2.state.videoWidth < canvasSize.w || handle2.state.videoHeight < canvasSize.h)
-                        ? { maxWidth: handle2.state.videoWidth, maxHeight: handle2.state.videoHeight, objectFit: 'contain', margin: 'auto' }
+                        ? { maxWidth: handle2.state.videoWidth, maxHeight: handle2.state.videoHeight, margin: 'auto' }
                         : {}),
                     }}
                     playsInline
