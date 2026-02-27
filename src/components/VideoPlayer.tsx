@@ -109,22 +109,16 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
     return () => ro.disconnect();
   }, []);
 
-  // Compute explicit pixel dimensions: fill canvas height, cap at native resolution.
-  // Avoids flex/percentage-height ambiguity by using absolute pixel values.
-  const videoW = handle.state.videoWidth;
-  const videoH = handle.state.videoHeight;
-  let mediaDisplayWidth: number | string = 'auto';
-  let mediaDisplayHeight: number | string = '100%';
-  if (canvasSize.h > 0 && videoW > 0 && videoH > 0) {
-    if (videoH >= canvasSize.h) {
-      mediaDisplayHeight = canvasSize.h;
-      mediaDisplayWidth = canvasSize.h * (videoW / videoH);
-    } else {
-      mediaDisplayHeight = videoH;
-      mediaDisplayWidth = videoW;
-    }
-  }
-  const mediaBaseStyle: React.CSSProperties = { height: mediaDisplayHeight, width: mediaDisplayWidth, maxWidth: 'none', flexShrink: 0 };
+  // Explicit pixel size: always fill canvas height, auto-width by AR.
+  // This exactly matches computeVideoBox(W, H, videoAR) in MarkupOverlay.
+  const mediaH = canvasSize.h > 0 ? canvasSize.h : undefined;
+  const mediaW = mediaH && videoAR > 0 ? mediaH * videoAR : undefined;
+  const mediaStyle: React.CSSProperties = {
+    height: mediaH ?? '100%',
+    width: mediaW ?? 'auto',
+    maxWidth: 'none',
+    flexShrink: 0,
+  };
 
   // Close popup when clicking outside the strip
   useEffect(() => {
@@ -214,7 +208,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 src={videoSrc}
                 alt=""
                 style={{
-                  ...mediaBaseStyle,
+                  ...mediaStyle,
                   transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
                   filter: imageAdjustToFilter(imageAdjust, gammaFilterId),
@@ -225,7 +219,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 ref={videoRef}
                 src={videoSrc}
                 style={{
-                  ...mediaBaseStyle,
+                  ...mediaStyle,
                   transform: `translate(${transform.translateX}px, ${-transform.translateY}px) scale(${transform.scale})`,
                   transformOrigin: 'center center',
                   filter: imageAdjustToFilter(imageAdjust, gammaFilterId),

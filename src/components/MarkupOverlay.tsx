@@ -27,19 +27,18 @@ import PointMagnifier from './PointMagnifier';
 
 interface VideoBox { x: number; y: number; w: number; h: number; }
 
-/** Compute the letterbox/pillarbox display rect of a video inside a canvas. */
+/**
+ * Compute the display rect of a video inside a canvas.
+ * Matches CSS `h-full w-auto` (fill-height): the video always fills the full canvas
+ * height, width is auto-sized by AR, and centered horizontally. Wide videos that are
+ * wider than the canvas extend beyond the canvas edges (clipped by overflow-hidden).
+ * Portrait videos get letterbox bars on the sides.
+ */
 function computeVideoBox(canvasW: number, canvasH: number, videoAR: number): VideoBox {
   if (videoAR <= 0 || !isFinite(videoAR)) return { x: 0, y: 0, w: canvasW, h: canvasH };
-  const canvasAR = canvasW / canvasH;
-  if (canvasAR > videoAR) {
-    const vH = canvasH;
-    const vW = vH * videoAR;
-    return { x: (canvasW - vW) / 2, y: 0, w: vW, h: vH };
-  } else {
-    const vW = canvasW;
-    const vH = vW / videoAR;
-    return { x: 0, y: (canvasH - vH) / 2, w: vW, h: vH };
-  }
+  const vW = canvasH * videoAR;
+  const vX = (canvasW - vW) / 2;
+  return { x: vX, y: 0, w: vW, h: canvasH };
 }
 
 /**

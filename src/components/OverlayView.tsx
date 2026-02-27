@@ -150,8 +150,19 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
   const [activePanel2, setActivePanel2] = useState<ToolStripPanel | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dropSide, setDropSide] = useState<1 | 2 | null>(null);
-  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0) setCanvasSize({ w: width, h: height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const hasSrc1 = !!handle1.state.src;
   const hasSrc2 = !!handle2.state.src;
@@ -211,31 +222,17 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
     if (!hasSrc2) setActivePanel2(null);
   }, [hasSrc1, hasSrc2]);
 
-  useEffect(() => {
-    const el = canvasRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const { width, height } = entries[0].contentRect;
-      if (width > 0 && height > 0) setCanvasSize({ w: width, h: height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
-  const correctionScale = 1;
   const effectiveTransform1 = t1;
   const effectiveTransform2 = t2;
 
-  // Compute explicit pixel dimensions: fill canvas height, cap at native resolution.
+  // Explicit pixel size: always fill canvas height, auto-width by AR.
+  // Matches computeVideoBox(W, H, AR) fill-height formula in MarkupOverlay.
   function mediaSize(vw: number, vh: number): React.CSSProperties {
-    if (canvasSize.h > 0 && vw > 0 && vh > 0) {
-      if (vh >= canvasSize.h) {
-        return { height: canvasSize.h, width: canvasSize.h * (vw / vh), maxWidth: 'none', flexShrink: 0 };
-      } else {
-        return { height: vh, width: vw, maxWidth: 'none', flexShrink: 0 };
-      }
-    }
-    return { height: '100%', width: 'auto', maxWidth: 'none', flexShrink: 0 };
+    const ar = vw > 0 && vh > 0 ? vw / vh : 0;
+    const mediaH = canvasSize.h > 0 ? canvasSize.h : undefined;
+    const mediaW = mediaH && ar > 0 ? mediaH * ar : undefined;
+    return { height: mediaH ?? '100%', width: mediaW ?? 'auto', maxWidth: 'none', flexShrink: 0 };
   }
 
   const popup1 = activePanel1 === 'transform' ? (
@@ -367,7 +364,6 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   handle={markupHandle1}
                   transform={t1}
                   videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
-                  correctionScale={correctionScale}
                   currentTime={handle1.state.currentTime}
                   onOpenToolPanel={(type) => { onActivate1?.(); setActivePanel1(type); }}
                   onClosePanel={() => setActivePanel1(null)}
@@ -413,7 +409,6 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   handle={markupHandle2}
                   transform={t2}
                   videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
-                  correctionScale={correctionScale}
                   currentTime={handle2.state.currentTime}
                   onOpenToolPanel={(type) => { onActivate2?.(); setActivePanel2(type); }}
                   onClosePanel={() => setActivePanel2(null)}
