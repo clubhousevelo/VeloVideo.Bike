@@ -32,6 +32,8 @@ export interface MarkupLine {
   unit?: string;
   /** Measure tool: when true, this line shows scaled length based on reference */
   isMeasurement?: boolean;
+  /** User-defined name for the line (e.g. "Wheelbase") */
+  name?: string;
 }
 
 export interface MarkupAngle {
@@ -47,6 +49,8 @@ export interface MarkupAngle {
   timestamp?: number;
   /** Seconds to display; null = infinite. Default: 2 for angles. */
   displayDuration?: number | null;
+  /** User-defined name for the angle (e.g. "Knee angle") */
+  name?: string;
 }
 
 export interface MarkupText {
@@ -100,8 +104,8 @@ export interface MarkupHandle {
   addLine: (line: Omit<MarkupLine, 'id'>) => void;
   addAngle: (angle: Omit<MarkupAngle, 'id'>) => void;
   addText: (text: Omit<MarkupText, 'id'>) => void;
-  updateLine: (id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'displayDuration' | 'referenceLength' | 'unit' | 'isMeasurement'>>) => void;
-  updateAngle: (id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; displayDuration: number | null }>) => void;
+  updateLine: (id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'displayDuration' | 'referenceLength' | 'unit' | 'isMeasurement' | 'name'>>) => void;
+  updateAngle: (id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; displayDuration: number | null; name: string }>) => void;
   updateText: (id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth' | 'displayDuration'>>) => void;
   removeItem: (type: 'line' | 'angle' | 'text', id: string) => void;
   clearAll: () => void;
@@ -267,6 +271,7 @@ export function useMarkup(): MarkupHandle {
           ...(updates.color !== undefined && { color: updates.color }),
           ...(updates.width !== undefined && { width: updates.width }),
           ...(updates.displayDuration !== undefined && { displayDuration: updates.displayDuration }),
+          ...('name' in updates && { name: updates.name || undefined }),
         };
         // Only recalculate angleDeg when points change. Caller-supplied angleDeg uses visual coords for accuracy.
         // Recalculating from normalized coords when only width/color/duration change would give wrong values

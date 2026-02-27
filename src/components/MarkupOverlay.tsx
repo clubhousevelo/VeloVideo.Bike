@@ -146,6 +146,8 @@ interface MarkupOverlayProps {
   currentTime?: number;
   /** Called when user double-clicks a markup item. Opens the corresponding tool panel. */
   onOpenToolPanel?: (type: 'line' | 'angle' | 'text') => void;
+  /** Called when Escape should close the tool panel (e.g. second Escape after unselecting). */
+  onClosePanel?: () => void;
   /** Video or image element for the magnifier. When not provided, the magnifier will try to find it from the DOM. */
   mediaEl?: HTMLVideoElement | HTMLImageElement | null;
 }
@@ -165,15 +167,15 @@ function isMarkupVisible(
   currentTime: number
 ): boolean {
   if (timestamp === undefined) return true; // legacy: no timestamp = always visible
+  // undefined = use default; null = "Always on" (visible from start, even before timestamp)
+  const dur = displayDuration === undefined ? defaultDuration : displayDuration;
+  if (dur === null || dur === undefined) return true; // Always on: visible everywhere
   const t = timestamp;
   if (currentTime < t) return false;
-  // undefined = use default; null = explicit infinite; number = that many seconds
-  const dur = displayDuration === undefined ? defaultDuration : displayDuration;
-  if (dur === null || dur === undefined) return true;
   return currentTime <= t + dur;
 }
 
-export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1, currentTime = 0, onOpenToolPanel, mediaEl: mediaElProp }: MarkupOverlayProps) {
+export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1, currentTime = 0, onOpenToolPanel, onClosePanel, mediaEl: mediaElProp }: MarkupOverlayProps) {
   const { state, addLine, addAngle, addText, updateLine, updateAngle, updateText, setSelected, setTool, snapshotForUndo, removeItem } = handle;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -246,11 +248,21 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       const inInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
       if (e.key === 'Shift') setShiftKey(true);
       if (e.key === 'Escape') {
-        setPendingPoints([]);
-        setEditingText(null);
-        setPendingReferenceLineId(null);
-        setDrag(null);
-        if (state.tool !== 'none') setTool('none');
+        if (editingText) {
+          setEditingText(null);
+          return;
+        }
+        if (state.selected) {
+          setSelected(null);
+          return;
+        }
+        if (pendingPoints.length > 0) {
+          setPendingPoints([]);
+          setPendingReferenceLineId(null);
+          setDrag(null);
+          return;
+        }
+        onClosePanel?.();
         return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && !inInput) {
@@ -272,7 +284,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [state.selected, state.tool, removeItem, setTool]);
+  }, [state.selected, state.tool, pendingPoints.length, editingText, removeItem, setTool, setSelected, onClosePanel]);
 
   // Derived helpers (re-computed per render but cheap)
   const W = svgSize.width;

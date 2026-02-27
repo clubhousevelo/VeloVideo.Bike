@@ -371,6 +371,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   correctionScale={correctionScale}
                   currentTime={handle1.state.currentTime}
                   onOpenToolPanel={(type) => { onActivate1?.(); setActivePanel1(type); }}
+                  onClosePanel={() => setActivePanel1(null)}
                 />
               </div>
             )}
@@ -426,6 +427,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                   correctionScale={correctionScale}
                   currentTime={handle2.state.currentTime}
                   onOpenToolPanel={(type) => { onActivate2?.(); setActivePanel2(type); }}
+                  onClosePanel={() => setActivePanel2(null)}
                 />
               </div>
             )}

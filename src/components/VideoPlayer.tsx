@@ -229,7 +229,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 preload="auto"
               />
             )}
-            <MarkupOverlay handle={markupHandle} transform={transform} videoAR={videoAR} currentTime={currentTime} onOpenToolPanel={(type) => setActivePanel(type)} />
+            <MarkupOverlay handle={markupHandle} transform={transform} videoAR={videoAR} currentTime={currentTime} onOpenToolPanel={(type) => setActivePanel(type)} onClosePanel={() => setActivePanel(null)} />
             <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-xs font-semibold text-white px-2.5 py-1 rounded-md pointer-events-none">
               {label}
             </div>

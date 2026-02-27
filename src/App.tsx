@@ -301,8 +301,16 @@ export default function App() {
         return;
       }
 
-      // Don't intercept other keys while typing
-      if (inInput || isMeta) return;
+      // Don't intercept other keys while typing (except Space on range/select for play/pause)
+      if (inInput || isMeta) {
+        const isRange = target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'range';
+        const isSelect = target.tagName === 'SELECT';
+        if ((isRange || isSelect) && e.code === 'Space') {
+          e.preventDefault();
+          globalTogglePlay();
+        }
+        return;
+      }
 
       // Active video select
       if (e.key === '1') { setActiveVideo(1); return; }
@@ -474,7 +482,10 @@ export default function App() {
               <span className="text-xs text-slate-500">Speed</span>
               <select
                 value={globalRate}
-                onChange={(e) => setGlobalRate(parseFloat(e.target.value))}
+                onChange={(e) => {
+                  setGlobalRate(parseFloat(e.target.value));
+                  (e.target as HTMLSelectElement).blur();
+                }}
                 className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-2 py-1.5 cursor-pointer outline-none hover:border-slate-500 focus:border-blue-500 transition-colors"
               >
                 {SPEEDS.map((rate) => (

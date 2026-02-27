@@ -40,7 +40,7 @@ function DisplayDurationRow({
             onChange={(e) => onChange(e.target.checked ? null : (defaultSeconds ?? 2))}
             className="accent-blue-500 cursor-pointer"
           />
-          <span className="text-[11px] text-slate-300">Until end (∞)</span>
+          <span className="text-[11px] text-slate-300">Always on</span>
         </label>
       </div>
       {!isInfinite && (
@@ -190,6 +190,16 @@ export default function MarkupPopupByType({ markup, type, updateGridOverride, sy
                 <input type="checkbox" checked={!!selLine.showAngle} onChange={(e) => updateLine(selLine.id, { showAngle: e.target.checked })} className="accent-blue-500 cursor-pointer" />
               </label>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-300 w-14 shrink-0">Name</span>
+              <input
+                type="text"
+                value={selLine.name ?? ''}
+                onChange={(e) => updateLine(selLine.id, { name: e.target.value || undefined })}
+                placeholder="e.g. Wheelbase"
+                className="flex-1 px-2 py-1 text-[11px] bg-slate-700/70 rounded border border-slate-600/60 text-slate-200 placeholder-slate-500"
+              />
+            </div>
             <DisplayDurationRow
               value={selLine.displayDuration}
               onChange={(v) => updateLine(selLine.id, { displayDuration: v })}
@@ -201,7 +211,7 @@ export default function MarkupPopupByType({ markup, type, updateGridOverride, sy
           <div className="space-y-1 max-h-28 overflow-y-auto">
             {state.lines.map((l, i) => (
               <div key={l.id} onClick={() => setSelected({ type: 'line', id: l.id })} className={`flex items-center justify-between gap-1 px-2 py-1 rounded text-[11px] cursor-pointer ${state.selected?.type === 'line' && state.selected.id === l.id ? 'bg-blue-600/40 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'}`}>
-                <span>Line {i + 1}</span>
+                <span className="truncate">{l.name?.trim() || `Line ${i + 1}`}</span>
                 <button onClick={(e) => { e.stopPropagation(); removeItem('line', l.id); }} className="p-0.5 text-slate-400 hover:text-red-400">×</button>
               </div>
             ))}
@@ -243,6 +253,16 @@ export default function MarkupPopupByType({ markup, type, updateGridOverride, sy
               <input type="range" min={1} max={8} step={1} value={selAngle.width ?? 2} onChange={(e) => updateAngle(selAngle.id, { width: parseInt(e.target.value) })} className="flex-1" />
               <span className="text-[11px] text-slate-200 w-5">{selAngle.width ?? 2}px</span>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-300 w-14 shrink-0">Name</span>
+              <input
+                type="text"
+                value={selAngle.name ?? ''}
+                onChange={(e) => updateAngle(selAngle.id, { name: e.target.value || undefined })}
+                placeholder="e.g. Knee angle"
+                className="flex-1 px-2 py-1 text-[11px] bg-slate-700/70 rounded border border-slate-600/60 text-slate-200 placeholder-slate-500"
+              />
+            </div>
             <DisplayDurationRow
               value={selAngle.displayDuration}
               onChange={(v) => updateAngle(selAngle.id, { displayDuration: v })}
@@ -254,7 +274,7 @@ export default function MarkupPopupByType({ markup, type, updateGridOverride, sy
           <div className="space-y-1 max-h-28 overflow-y-auto">
             {state.angles.map((a) => (
               <div key={a.id} onClick={() => setSelected({ type: 'angle', id: a.id })} className={`flex items-center justify-between gap-1 px-2 py-1 rounded text-[11px] cursor-pointer ${state.selected?.type === 'angle' && state.selected.id === a.id ? 'bg-blue-600/40 text-white' : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700'}`}>
-                <span>{a.angleDeg.toFixed(1)}°</span>
+                <span className="truncate">{a.name?.trim() || `${a.angleDeg.toFixed(1)}°`}</span>
                 <button onClick={(e) => { e.stopPropagation(); removeItem('angle', a.id); }} className="p-0.5 text-slate-400 hover:text-red-400">×</button>
               </div>
             ))}
