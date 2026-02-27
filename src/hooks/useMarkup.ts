@@ -271,7 +271,7 @@ export function useMarkup(): MarkupHandle {
           ...(updates.color !== undefined && { color: updates.color }),
           ...(updates.width !== undefined && { width: updates.width }),
           ...(updates.displayDuration !== undefined && { displayDuration: updates.displayDuration }),
-          ...('name' in updates && { name: updates.name || undefined }),
+          ...('name' in updates && { name: (updates.name as string | undefined) || undefined }),
         };
         // Only recalculate angleDeg when points change. Caller-supplied angleDeg uses visual coords for accuracy.
         // Recalculating from normalized coords when only width/color/duration change would give wrong values

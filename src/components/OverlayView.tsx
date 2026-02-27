@@ -335,7 +335,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     alt=""
                     className={handle1.state.videoWidth > 0 && handle1.state.videoHeight > 0 && (handle1.state.videoWidth < canvasSize.w || handle1.state.videoHeight < canvasSize.h)
                       ? 'w-full h-full object-contain'
-                      : 'h-full w-auto'}
+                      : 'h-full w-auto shrink-0'}
                     style={{
                       transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
@@ -351,7 +351,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     src={handle1.state.src}
                     className={handle1.state.videoWidth > 0 && handle1.state.videoHeight > 0 && (handle1.state.videoWidth < canvasSize.w || handle1.state.videoHeight < canvasSize.h)
                       ? 'w-full h-full object-contain'
-                      : 'h-full w-auto'}
+                      : 'h-full w-auto shrink-0'}
                     style={{
                       transform: `translate(${effectiveTransform1.translateX}px, ${-effectiveTransform1.translateY}px) scale(${effectiveTransform1.scale})`,
                       transformOrigin: 'center center',
@@ -391,7 +391,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     alt=""
                     className={handle2.state.videoWidth > 0 && handle2.state.videoHeight > 0 && (handle2.state.videoWidth < canvasSize.w || handle2.state.videoHeight < canvasSize.h)
                       ? 'w-full h-full object-contain'
-                      : 'h-full w-auto'}
+                      : 'h-full w-auto shrink-0'}
                     style={{
                       transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',
@@ -407,7 +407,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     src={handle2.state.src}
                     className={handle2.state.videoWidth > 0 && handle2.state.videoHeight > 0 && (handle2.state.videoWidth < canvasSize.w || handle2.state.videoHeight < canvasSize.h)
                       ? 'w-full h-full object-contain'
-                      : 'h-full w-auto'}
+                      : 'h-full w-auto shrink-0'}
                     style={{
                       transform: `translate(${effectiveTransform2.translateX}px, ${-effectiveTransform2.translateY}px) scale(${effectiveTransform2.scale})`,
                       transformOrigin: 'center center',

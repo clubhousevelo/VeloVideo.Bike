@@ -114,7 +114,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
     (handle.state.videoWidth < canvasSize.w || handle.state.videoHeight < canvasSize.h);
   const mediaClassName = isSmallerThanCanvas
     ? 'w-full h-full object-contain'
-    : 'h-full w-auto';
+    : 'h-full w-auto shrink-0';
   const mediaStyle = isSmallerThanCanvas
     ? { maxWidth: handle.state.videoWidth, maxHeight: handle.state.videoHeight, margin: 'auto' as const }
     : {};
