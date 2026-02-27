@@ -470,7 +470,7 @@ export default function App() {
               </svg>
             </div>
             <h1 className="text-lg font-bold text-white tracking-tight">
-              Velo<span className="text-blue-400">Video</span>
+              Velo<span className="text-blue-400">Lens</span>
             </h1>
           </div>
 
@@ -650,7 +650,7 @@ export default function App() {
       {/* Footer */}
       <footer className="border-t border-slate-800 py-3">
         <div className="max-w-[1800px] mx-auto px-6 flex items-center justify-between text-xs text-slate-600">
-          <span>VeloVideo — Video Comparison Tool</span>
+          <span>VeloLens — Video Comparison Tool</span>
           <span>All videos stay on your device</span>
         </div>
       </footer>

@@ -6,7 +6,7 @@
 import type { VideoTransform, ImageAdjust } from '../hooks/useVideoPlayer';
 import type { MarkupSnap } from '../hooks/useMarkup';
 
-const DB_NAME = 'VeloVideoBike';
+const DB_NAME = 'VeloLens';
 const STORE = 'videos';
 const KEY_VIDEO1 = 'video1';
 const KEY_VIDEO2 = 'video2';
