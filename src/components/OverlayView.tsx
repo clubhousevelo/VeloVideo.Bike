@@ -10,13 +10,10 @@ import TransformPanel from './TransformPanel';
 import ImageAdjustPanel, { imageAdjustToFilter, GammaFilterSvg } from './ImageAdjustPanel';
 import MarkupPopupByType from './MarkupPopupByType';
 import MarkupOverlay from './MarkupOverlay';
-import PoseTrackingOverlay from './PoseTrackingOverlay';
-import type { PoseTrackingPreset } from './PoseTrackingOverlay';
 import ToolStrip from './ToolStrip';
 import ActionStrip from './ActionStrip';
 import type { ToolStripPanel } from './ToolStrip';
 import { isMediaFile } from '../lib/videoFile';
-import type { DlcFrame } from '../lib/dlcTypes';
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -25,39 +22,16 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
 }
 
-const PRESET_ORDER: PoseTrackingPreset[] = ['race', 'balanced', 'stability'];
-function nextPreset(current: PoseTrackingPreset): PoseTrackingPreset {
-  const idx = PRESET_ORDER.indexOf(current);
-  return PRESET_ORDER[(idx + 1) % PRESET_ORDER.length];
-}
-function presetLabel(preset: PoseTrackingPreset): string {
-  if (preset === 'stability') return 'Stable';
-  if (preset === 'balanced') return 'Balanced';
-  return 'Race';
-}
-
 function VideoControls({
   label,
   handle,
   markupHandle,
   onRemove,
-  poseEnabled,
-  onTogglePose,
-  poseSideViewMode,
-  onTogglePoseSideView,
-  posePreset,
-  onTogglePosePreset,
 }: {
   label: string;
   handle: VideoPlayerHandle;
   markupHandle?: MarkupHandle;
   onRemove?: () => void;
-  poseEnabled?: boolean;
-  onTogglePose?: () => void;
-  poseSideViewMode?: boolean;
-  onTogglePoseSideView?: () => void;
-  posePreset?: PoseTrackingPreset;
-  onTogglePosePreset?: () => void;
 }) {
   const { state, selectFile, clearVideo, togglePlay, scrub, setTrimStart, setTrimEnd, stepFrame } = handle;
   const handleRemove = () => { clearVideo(); onRemove?.(); };
@@ -121,39 +95,6 @@ function VideoControls({
               </button>
             </div>
             <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-              {onTogglePose && !isImage && (
-                <>
-                  <button
-                    onClick={onTogglePose}
-                    className={`text-xs py-0.5 transition-colors ${poseEnabled ? 'text-cyan-300 hover:text-cyan-200' : 'text-slate-500 hover:text-cyan-300'}`}
-                  >
-                    Pose
-                  </button>
-                  <span className="text-slate-700">|</span>
-                </>
-              )}
-              {onTogglePoseSideView && !isImage && poseEnabled && (
-                <>
-                  <button
-                    onClick={onTogglePoseSideView}
-                    className={`text-xs py-0.5 transition-colors ${poseSideViewMode ? 'text-cyan-200 hover:text-cyan-100' : 'text-slate-500 hover:text-cyan-300'}`}
-                  >
-                    Side
-                  </button>
-                  <span className="text-slate-700">|</span>
-                </>
-              )}
-              {onTogglePosePreset && !isImage && poseEnabled && (
-                <>
-                  <button
-                    onClick={onTogglePosePreset}
-                    className="text-xs py-0.5 text-slate-400 hover:text-cyan-300 transition-colors"
-                  >
-                    {presetLabel(posePreset ?? 'race')}
-                  </button>
-                  <span className="text-slate-700">|</span>
-                </>
-              )}
               <button onClick={selectFile} className="text-xs text-slate-500 hover:text-slate-300 py-0.5 transition-colors">
                 {isImage ? 'Change image' : 'Change video'}
               </button>
@@ -210,22 +151,14 @@ interface OverlayViewProps {
   onSyncGridToggle?: (enabled: boolean, current: GridSettings) => void;
   updateGrid1?: (g: Partial<GridSettings>) => void;
   updateGrid2?: (g: Partial<GridSettings>) => void;
-  externalPoseFrames1?: DlcFrame[] | null;
-  externalPoseFrames2?: DlcFrame[] | null;
 }
 
-export default function OverlayView({ handle1, handle2, markupHandle1, markupHandle2, activeVideo, onActivate1, onActivate2, onRemoveVideo1, onRemoveVideo2, onDropFile, onTransformChange1, onTransformReset1, onTransformChange2, onTransformReset2, syncTransform, onSyncToggle, onImageAdjustChange1, onImageAdjustReset1, onImageAdjustChange2, onImageAdjustReset2, syncImageAdjust, onSyncImageAdjustToggle, syncGrid, onSyncGridToggle, updateGrid1, updateGrid2, externalPoseFrames1, externalPoseFrames2 }: OverlayViewProps) {
+export default function OverlayView({ handle1, handle2, markupHandle1, markupHandle2, activeVideo, onActivate1, onActivate2, onRemoveVideo1, onRemoveVideo2, onDropFile, onTransformChange1, onTransformReset1, onTransformChange2, onTransformReset2, syncTransform, onSyncToggle, onImageAdjustChange1, onImageAdjustReset1, onImageAdjustChange2, onImageAdjustReset2, syncImageAdjust, onSyncImageAdjustToggle, syncGrid, onSyncGridToggle, updateGrid1, updateGrid2 }: OverlayViewProps) {
   const gammaFilterId1 = useId();
   const gammaFilterId2 = useId();
   const [blendPosition, setBlendPosition] = useState(50);
   const [activePanel1, setActivePanel1] = useState<ToolStripPanel | null>(null);
   const [activePanel2, setActivePanel2] = useState<ToolStripPanel | null>(null);
-  const [poseEnabled1, setPoseEnabled1] = useState(false);
-  const [poseEnabled2, setPoseEnabled2] = useState(false);
-  const [poseSideViewMode1, setPoseSideViewMode1] = useState(false);
-  const [poseSideViewMode2, setPoseSideViewMode2] = useState(false);
-  const [posePreset1, setPosePreset1] = useState<PoseTrackingPreset>('race');
-  const [posePreset2, setPosePreset2] = useState<PoseTrackingPreset>('race');
   const [dragOver, setDragOver] = useState(false);
   const [dropSide, setDropSide] = useState<1 | 2 | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -438,18 +371,6 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     preload="auto"
                   />
                 )}
-                {handle1.state.mediaType === 'video' && (
-                  <PoseTrackingOverlay
-                    enabled={poseEnabled1}
-                    sideViewMode={poseSideViewMode1}
-                    preset={posePreset1}
-                    externalFrames={externalPoseFrames1}
-                    currentTime={handle1.state.currentTime}
-                    isPlaying={handle1.state.isPlaying}
-                    transform={t1}
-                    videoAR={handle1.state.videoWidth && handle1.state.videoHeight ? handle1.state.videoWidth / handle1.state.videoHeight : 0}
-                  />
-                )}
                 <MarkupOverlay
                   handle={markupHandle1}
                   transform={t1}
@@ -493,18 +414,6 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
                     }}
                     playsInline
                     preload="auto"
-                  />
-                )}
-                {handle2.state.mediaType === 'video' && (
-                  <PoseTrackingOverlay
-                    enabled={poseEnabled2}
-                    sideViewMode={poseSideViewMode2}
-                    preset={posePreset2}
-                    externalFrames={externalPoseFrames2}
-                    currentTime={handle2.state.currentTime}
-                    isPlaying={handle2.state.isPlaying}
-                    transform={t2}
-                    videoAR={handle2.state.videoWidth && handle2.state.videoHeight ? handle2.state.videoWidth / handle2.state.videoHeight : 0}
                   />
                 )}
                 <MarkupOverlay
@@ -645,24 +554,12 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
           handle={handle1}
           markupHandle={markupHandle1}
           onRemove={onRemoveVideo1}
-          poseEnabled={poseEnabled1}
-          onTogglePose={() => setPoseEnabled1((prev) => !prev)}
-          poseSideViewMode={poseSideViewMode1}
-          onTogglePoseSideView={() => setPoseSideViewMode1((prev) => !prev)}
-          posePreset={posePreset1}
-          onTogglePosePreset={() => setPosePreset1((prev) => nextPreset(prev))}
         />
         <VideoControls
           label="Video 2"
           handle={handle2}
           markupHandle={markupHandle2}
           onRemove={onRemoveVideo2}
-          poseEnabled={poseEnabled2}
-          onTogglePose={() => setPoseEnabled2((prev) => !prev)}
-          poseSideViewMode={poseSideViewMode2}
-          onTogglePoseSideView={() => setPoseSideViewMode2((prev) => !prev)}
-          posePreset={posePreset2}
-          onTogglePosePreset={() => setPosePreset2((prev) => nextPreset(prev))}
         />
       </div>
     </div>

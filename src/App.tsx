@@ -6,18 +6,14 @@ import type { VideoTransform, ImageAdjust } from './hooks/useVideoPlayer';
 import { useMarkup, type GridSettings } from './hooks/useMarkup';
 import { getPersistedVideos, setPersistedVideo, removePersistedVideo } from './lib/persistence';
 import { isMediaFile } from './lib/videoFile';
-import { submitDlcJob, getDlcJobStatus, getDlcJobResult } from './lib/dlcApi';
-import type { DlcFrame } from './lib/dlcTypes';
 
 type ViewMode = 'side-by-side' | 'overlay';
-type DlcRunState = 'idle' | 'uploading' | 'running' | 'completed' | 'failed';
 
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
 const SAVE_DEBOUNCE_MS = 1500;
 const SKIP_SAVE_AFTER_MOUNT_MS = 2500;
 const STEP_REPEAT_DELAY_MS = 200;
 const STEP_REPEAT_INTERVAL_MS = 50;
-const DLC_POLL_INTERVAL_MS = 2000;
 
 export default function App() {
   const mountTimeRef = useRef(Date.now());
@@ -34,10 +30,6 @@ export default function App() {
   const [syncImageAdjust, setSyncImageAdjust] = useState(false);
   const [syncGrid, setSyncGrid] = useState(false);
   const [activeVideo, setActiveVideo] = useState<1 | 2>(1);
-  const [dlcRunState, setDlcRunState] = useState<DlcRunState>('idle');
-  const [dlcMessage, setDlcMessage] = useState('');
-  const [dlcFrames1, setDlcFrames1] = useState<DlcFrame[] | null>(null);
-  const [dlcFrames2, setDlcFrames2] = useState<DlcFrame[] | null>(null);
 
   const handle1 = useVideoPlayer();
   const handle2 = useVideoPlayer();
@@ -124,57 +116,15 @@ export default function App() {
   const anyPlaying = handle1.state.isPlaying || handle2.state.isPlaying;
   const hasAnyVideo = handle1.state.src || handle2.state.src;
 
-  const runDlcForActiveVideo = useCallback(async () => {
-    const activeHandle = activeVideo === 1 ? handle1 : handle2;
-    if (!activeHandle.state.src || activeHandle.state.mediaType !== 'video') {
-      setDlcRunState('failed');
-      setDlcMessage('DeepLabCut requires a loaded video on the active panel.');
-      return;
-    }
-
-    try {
-      setDlcRunState('uploading');
-      setDlcMessage('Uploading video to local DeepLabCut worker...');
-      const blob = await fetch(activeHandle.state.src).then((r) => r.blob());
-      const { jobId } = await submitDlcJob(blob, activeHandle.state.fileName || `video-${activeVideo}.mp4`);
-
-      setDlcRunState('running');
-      setDlcMessage('DeepLabCut is analyzing video frames...');
-      // Poll local worker until completion/failure.
-      for (;;) {
-        await new Promise((resolve) => setTimeout(resolve, DLC_POLL_INTERVAL_MS));
-        const status = await getDlcJobStatus(jobId);
-        if (status.status === 'completed') {
-          const result = await getDlcJobResult(jobId);
-          if (activeVideo === 1) setDlcFrames1(result.frames);
-          else setDlcFrames2(result.frames);
-          setDlcRunState('completed');
-          setDlcMessage(`DeepLabCut loaded ${result.frames.length} tracked frames.`);
-          return;
-        }
-        if (status.status === 'failed') {
-          setDlcRunState('failed');
-          setDlcMessage(status.error || 'DeepLabCut job failed.');
-          return;
-        }
-      }
-    } catch (err) {
-      setDlcRunState('failed');
-      setDlcMessage(err instanceof Error ? err.message : 'Failed to run DeepLabCut job.');
-    }
-  }, [activeVideo, handle1, handle2]);
-
   // Remove video helpers — clear state + remove from IndexedDB
   const removeVideo1 = useCallback(() => {
     removePersistedVideo('video1').catch(() => {});
     markup1.loadSnap({ lines: [], angles: [], texts: [], grid: markup1.state.grid, hidden: markup1.state.hidden });
-    setDlcFrames1(null);
   }, [markup1]);
 
   const removeVideo2 = useCallback(() => {
     removePersistedVideo('video2').catch(() => {});
     markup2.loadSnap({ lines: [], angles: [], texts: [], grid: markup2.state.grid, hidden: markup2.state.hidden });
-    setDlcFrames2(null);
   }, [markup2]);
 
   // Overlay mode: left-half drop → V1, right-half drop → V2
@@ -182,11 +132,9 @@ export default function App() {
     if (!isMediaFile(file)) return;
     if (target === 1) {
       handle1.loadFromPersisted(file, file.name);
-      setDlcFrames1(null);
       markup1.loadSnap({ lines: [], angles: [], texts: [], grid: markup1.state.grid, hidden: markup1.state.hidden });
     } else {
       handle2.loadFromPersisted(file, file.name);
-      setDlcFrames2(null);
       markup2.loadSnap({ lines: [], angles: [], texts: [], grid: markup2.state.grid, hidden: markup2.state.hidden });
     }
   }, [handle1, handle2, markup1, markup2]);
@@ -577,25 +525,6 @@ export default function App() {
             {/* Separator */}
             <div className="w-px h-6 bg-slate-700" />
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={runDlcForActiveVideo}
-                disabled={dlcRunState === 'uploading' || dlcRunState === 'running'}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-medium transition-colors"
-                title="Run local DeepLabCut analysis for active video"
-              >
-                {dlcRunState === 'uploading' || dlcRunState === 'running' ? 'DLC Running...' : `Run DLC (Video ${activeVideo})`}
-              </button>
-              {dlcMessage && (
-                <span className={`text-xs ${dlcRunState === 'failed' ? 'text-red-300' : 'text-slate-400'}`}>
-                  {dlcMessage}
-                </span>
-              )}
-            </div>
-
-            {/* Separator */}
-            <div className="w-px h-6 bg-slate-700" />
-
             {/* View mode toggle */}
             <div className="flex items-center bg-slate-800/60 rounded-lg p-1">
               <div data-tooltip-side="bottom">
@@ -648,7 +577,7 @@ export default function App() {
                 isActive={activeVideo === 1}
                 onActivate={() => setActiveVideo(1)}
                 onRemoveVideo={removeVideo1}
-                onDropFile={(file) => { setDlcFrames1(null); handle1.loadFromPersisted(file, file.name); }}
+                onDropFile={(file) => { handle1.loadFromPersisted(file, file.name); }}
                 onTransformChange={setTransform1}
                 onTransformReset={resetTransform1}
                 syncTransform={syncTransform}
@@ -660,7 +589,6 @@ export default function App() {
                 syncGrid={syncGrid}
                 onSyncGridToggle={handleSyncGridToggle}
                 updateGridOverride={updateGrid1}
-                externalPoseFrames={dlcFrames1}
               />
               <VideoPlayer
                 label="Video 2"
@@ -670,7 +598,7 @@ export default function App() {
                 isActive={activeVideo === 2}
                 onActivate={() => setActiveVideo(2)}
                 onRemoveVideo={removeVideo2}
-                onDropFile={(file) => { setDlcFrames2(null); handle2.loadFromPersisted(file, file.name); }}
+                onDropFile={(file) => { handle2.loadFromPersisted(file, file.name); }}
                 onTransformChange={setTransform2}
                 onTransformReset={resetTransform2}
                 syncTransform={syncTransform}
@@ -682,7 +610,6 @@ export default function App() {
                 syncGrid={syncGrid}
                 onSyncGridToggle={handleSyncGridToggle}
                 updateGridOverride={updateGrid2}
-                externalPoseFrames={dlcFrames2}
               />
             </div>
           ) : (
@@ -714,8 +641,6 @@ export default function App() {
                 onSyncGridToggle={handleSyncGridToggle}
                 updateGrid1={updateGrid1}
                 updateGrid2={updateGrid2}
-                externalPoseFrames1={dlcFrames1}
-                externalPoseFrames2={dlcFrames2}
               />
             </div>
           )}
