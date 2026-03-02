@@ -175,7 +175,7 @@ function isMarkupVisible(
 }
 
 export default function MarkupOverlay({ handle, transform, videoAR, correctionScale = 1, currentTime = 0, onOpenToolPanel, onClosePanel, mediaEl: mediaElProp }: MarkupOverlayProps) {
-  const { state, addLine, addAngle, addText, updateLine, updateAngle, updateText, setSelected, setTool, snapshotForUndo, removeItem } = handle;
+  const { state, addLine, addAngle, addText, updateLine, updateAngle, updateText, setSelected, setHovered, setTool, snapshotForUndo, removeItem } = handle;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [mediaElFromDom, setMediaElFromDom] = useState<HTMLVideoElement | HTMLImageElement | null>(null);
@@ -419,6 +419,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
     }
     if ((e.target as Element)?.closest?.('[data-endpoint-handle]')) return;
     if (state.tool === 'none') {
+      setHovered(null);
       const hit = hitTest(canvasPt);
       if (hit) {
         e.stopPropagation();
@@ -629,6 +630,8 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
           const p1 = vis(line.x1, line.y1);
           const p2 = vis(line.x2, line.y2);
           const isSel = state.selected?.type === 'line' && state.selected.id === line.id;
+          const isHover = state.hovered?.type === 'line' && state.hovered.id === line.id;
+          const isFocus = isSel || isHover;
           const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
           const dx = p2.x - p1.x;
           const dy = p2.y - p1.y;
@@ -654,6 +657,7 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
           return (
             <g key={line.id}>
               <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="transparent" strokeWidth={16} style={{ cursor: 'grab' }} />
+              {isFocus && <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="white" strokeOpacity={0.35} strokeWidth={line.width + 4} strokeLinecap="round" style={{ pointerEvents: 'none' }} />}
               <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={line.color} strokeWidth={line.width} strokeLinecap="round" style={{ filter: dropShadow, pointerEvents: 'none' }} />
               {lineAngleDeg != null && (
                 <text x={mid.x} y={textY} fill={line.color} fontSize={12} fontWeight="600" textAnchor="middle" dominantBaseline="middle" transform={`rotate(${lineRotationDeg}, ${mid.x}, ${textY})`} style={{ filter: dropShadow, userSelect: 'none', pointerEvents: 'none' }}>
@@ -682,11 +686,19 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
           const arcPath = angleArcPath(vvx, vp1, vp2, 22);
           const labelPos = angleLabelPos(vvx, vp1, vp2, 42);
           const isSel = state.selected?.type === 'angle' && state.selected.id === angle.id;
+          const isHover = state.hovered?.type === 'angle' && state.hovered.id === angle.id;
+          const isFocus = isSel || isHover;
           const angleStroke = angle.width ?? 2;
           return (
             <g key={angle.id} style={{ filter: dropShadow }}>
               <line x1={vp1.x} y1={vp1.y} x2={vvx.x} y2={vvx.y} stroke="transparent" strokeWidth={16} style={{ cursor: 'grab' }} />
               <line x1={vvx.x} y1={vvx.y} x2={vp2.x} y2={vp2.y} stroke="transparent" strokeWidth={16} style={{ cursor: 'grab' }} />
+              {isFocus && (
+                <>
+                  <line x1={vp1.x} y1={vp1.y} x2={vvx.x} y2={vvx.y} stroke="white" strokeOpacity={0.35} strokeWidth={angleStroke + 4} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
+                  <line x1={vvx.x} y1={vvx.y} x2={vp2.x} y2={vp2.y} stroke="white" strokeOpacity={0.35} strokeWidth={angleStroke + 4} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
+                </>
+              )}
               <line x1={vp1.x} y1={vp1.y} x2={vvx.x} y2={vvx.y} stroke={angle.color} strokeWidth={angleStroke} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
               <line x1={vvx.x} y1={vvx.y} x2={vp2.x} y2={vp2.y} stroke={angle.color} strokeWidth={angleStroke} strokeLinecap="round" style={{ pointerEvents: 'none' }} />
               {arcPath && <path d={arcPath} fill="none" stroke={angle.color} strokeWidth={Math.max(1, angleStroke * 0.75)} style={{ pointerEvents: 'none' }} />}
@@ -709,6 +721,8 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
         {visibleTexts.map((text) => {
           const tp = vis(text.x, text.y);
           const isSel = state.selected?.type === 'text' && state.selected.id === text.id;
+          const isHover = state.hovered?.type === 'text' && state.hovered.id === text.id;
+          const isFocus = isSel || isHover;
           const boxWidthPx = text.boxWidth && text.boxWidth > 0 ? text.boxWidth * vBox.w : 0;
           const hasBox = boxWidthPx > 0;
           const singleLineW = Math.max(30, text.content.length * text.size * 0.55);
@@ -787,6 +801,20 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
                     {text.content || ' '}
                   </div>
                 </foreignObject>
+                {isFocus && (
+                  <rect
+                    x={tp.x - 2}
+                    y={tp.y - text.size - 2}
+                    width={Math.max(4, boxWidthPx + 4)}
+                    height={Math.max(4, text.size * 1.2 + 4)}
+                    fill="none"
+                    stroke="white"
+                    strokeOpacity={0.95}
+                    strokeWidth={2.5}
+                    strokeDasharray="6 4"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                )}
                 {isSel && <circle cx={tp.x} cy={tp.y} r={HANDLE_R} fill="white" stroke={text.color} strokeWidth={2} style={{ cursor: 'crosshair', pointerEvents: 'none' }} />}
                 {resizeHandle}
               </g>
@@ -822,6 +850,20 @@ export default function MarkupOverlay({ handle, transform, videoAR, correctionSc
               >
                 {text.content}
               </text>
+              {isFocus && (
+                <rect
+                  x={tp.x - 2}
+                  y={tp.y - text.size - 2}
+                  width={Math.max(4, singleLineW + 4)}
+                  height={Math.max(4, text.size * 1.2 + 4)}
+                  fill="none"
+                  stroke="white"
+                  strokeOpacity={0.95}
+                  strokeWidth={2.5}
+                  strokeDasharray="6 4"
+                  style={{ pointerEvents: 'none' }}
+                />
+              )}
               {isSel && <circle cx={tp.x} cy={tp.y} r={HANDLE_R} fill="white" stroke={text.color} strokeWidth={2} style={{ cursor: 'crosshair', pointerEvents: 'none' }} />}
               {resizeHandle}
             </g>

@@ -1,0 +1,2 @@
+model_checkpoint_path: "/Users/allenkuo/Desktop/VeloVideo.Bike/dlc-worker/models/cycling-sideview-allen-2026-02-28/dlc-models/iteration-0/cycling-sideviewFeb28-trainset95shuffle1/train/snapshot-100"
+all_model_checkpoint_paths: "/Users/allenkuo/Desktop/VeloVideo.Bike/dlc-worker/models/cycling-sideview-allen-2026-02-28/dlc-models/iteration-0/cycling-sideviewFeb28-trainset95shuffle1/train/snapshot-100"

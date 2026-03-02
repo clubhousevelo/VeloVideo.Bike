@@ -25,3 +25,4 @@ PAT
 *.njsproj
 *.sln
 *.sw?
+dlc-worker/data/

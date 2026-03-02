@@ -13,6 +13,7 @@ interface ScrubberWithTrimProps {
   markers?: ScrubberMarker[];
   className?: string;
   trackHeight?: string;
+  showTrimHandles?: boolean;
 }
 
 const MARKER_COLORS = { line: '#22c55e', angle: '#f59e0b', text: '#3b82f6' } as const;
@@ -28,6 +29,7 @@ export default function ScrubberWithTrim({
   markers = [],
   className = '',
   trackHeight = 'h-5',
+  showTrimHandles = true,
 }: ScrubberWithTrimProps) {
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -178,25 +180,29 @@ export default function ScrubberWithTrim({
         }
       />
 
-      {/* Left bracket [ — trim start */}
-      <div
-        className="absolute top-1/2 -translate-y-1/2 z-20 w-4 flex items-center justify-center cursor-ew-resize select-none text-slate-300 hover:text-blue-400 font-bold text-sm leading-none"
-        style={{ left: `calc(${trimStartPercent}% - 8px)` }}
-        onMouseDown={handleTrimStartMouseDown}
-        title="Drag to set trim start"
-      >
-        [
-      </div>
+      {showTrimHandles && (
+        <>
+          {/* Left bracket [ — trim start */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 z-20 w-4 flex items-center justify-center cursor-ew-resize select-none text-slate-300 hover:text-blue-400 font-bold text-sm leading-none"
+            style={{ left: `calc(${trimStartPercent}% - 8px)` }}
+            onMouseDown={handleTrimStartMouseDown}
+            title="Drag to set trim start"
+          >
+            [
+          </div>
 
-      {/* Right bracket ] — trim end (position so bracket sits at trim end) */}
-      <div
-        className="absolute top-1/2 -translate-y-1/2 z-20 w-4 flex items-center justify-end cursor-ew-resize select-none text-slate-300 hover:text-blue-400 font-bold text-sm leading-none"
-        style={{ left: `calc(${trimEndPercent}% - 16px)` }}
-        onMouseDown={handleTrimEndMouseDown}
-        title="Drag to set trim end"
-      >
-        ]
-      </div>
+          {/* Right bracket ] — trim end (position so bracket sits at trim end) */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 z-20 w-4 flex items-center justify-end cursor-ew-resize select-none text-slate-300 hover:text-blue-400 font-bold text-sm leading-none"
+            style={{ left: `calc(${trimEndPercent}% - 16px)` }}
+            onMouseDown={handleTrimEndMouseDown}
+            title="Drag to set trim end"
+          >
+            ]
+          </div>
+        </>
+      )}
     </div>
   );
 }

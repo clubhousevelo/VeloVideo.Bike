@@ -5,15 +5,19 @@ import type { MarkupHandle, GridSettings } from '../hooks/useMarkup';
 import { getScrubberMarkers } from '../hooks/useMarkup';
 import type { ToolStripPanel } from './ToolStrip';
 import ScrubberWithTrim from './ScrubberWithTrim';
+
 import TransformPanel from './TransformPanel';
 import ImageAdjustPanel, { imageAdjustToFilter, GammaFilterSvg } from './ImageAdjustPanel';
 import MarkupPopupByType from './MarkupPopupByType';
 import MarkupOverlay from './MarkupOverlay';
+import PoseTrackingOverlay from './PoseTrackingOverlay';
+import type { PoseTrackingPreset } from './PoseTrackingOverlay';
 import ToolStrip from './ToolStrip';
 import ActionStrip from './ActionStrip';
 import { DEFAULT_TRANSFORM, DEFAULT_IMAGE_ADJUST } from '../hooks/useVideoPlayer';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { isMediaFile } from '../lib/videoFile';
+import type { DlcFrame } from '../lib/dlcTypes';
 
 interface VideoPlayerProps {
   label: string;
@@ -37,6 +41,7 @@ interface VideoPlayerProps {
   syncGrid?: boolean;
   onSyncGridToggle?: (enabled: boolean, current: GridSettings) => void;
   updateGridOverride?: (g: Partial<GridSettings>) => void;
+  externalPoseFrames?: DlcFrame[] | null;
 }
 
 function formatTime(seconds: number): string {
@@ -46,13 +51,27 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
 }
 
-export default function VideoPlayer({ label, handle, markupHandle, side, isActive, onActivate, onRemoveVideo, onDropFile, onTransformChange, onTransformReset, syncTransform, onSyncToggle, onImageAdjustChange, onImageAdjustReset, syncImageAdjust, onSyncImageAdjustToggle, syncGrid, onSyncGridToggle, updateGridOverride }: VideoPlayerProps) {
+const PRESET_ORDER: PoseTrackingPreset[] = ['race', 'balanced', 'stability'];
+function nextPreset(current: PoseTrackingPreset): PoseTrackingPreset {
+  const idx = PRESET_ORDER.indexOf(current);
+  return PRESET_ORDER[(idx + 1) % PRESET_ORDER.length];
+}
+function presetLabel(preset: PoseTrackingPreset): string {
+  if (preset === 'stability') return 'Stable';
+  if (preset === 'balanced') return 'Balanced';
+  return 'Race';
+}
+
+export default function VideoPlayer({ label, handle, markupHandle, side, isActive, onActivate, onRemoveVideo, onDropFile, onTransformChange, onTransformReset, syncTransform, onSyncToggle, onImageAdjustChange, onImageAdjustReset, syncImageAdjust, onSyncImageAdjustToggle, syncGrid, onSyncGridToggle, updateGridOverride, externalPoseFrames }: VideoPlayerProps) {
   const gammaFilterId = useId();
   const videoAR = handle.state.videoWidth && handle.state.videoHeight ? handle.state.videoWidth / handle.state.videoHeight : 0;
   const { state, videoRef, selectFile, clearVideo, togglePlay, scrub, setTrimStart, setTrimEnd, stepFrame, setTransform, resetTransform, setImageAdjust, resetImageAdjust } = handle;
   const { src: videoSrc, fileName, duration, currentTime, isPlaying, trimStart, trimEnd, transform, imageAdjust } = state;
 
   const [activePanel, setActivePanel] = useState<ToolStripPanel | null>(null);
+  const [poseEnabled, setPoseEnabled] = useState(false);
+  const [poseSideViewMode, setPoseSideViewMode] = useState(false);
+  const [posePreset, setPosePreset] = useState<PoseTrackingPreset>('race');
   const [dragOver, setDragOver] = useState(false);
   const repeatBack = useRepeatWhilePressed(() => stepFrame(-1));
   const repeatFwd = useRepeatWhilePressed(() => stepFrame(1));
@@ -178,7 +197,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
         />
       </div>
       {activePanel && (
-        <div className={`absolute top-0 ${stripOnLeft ? 'left-full ml-1' : 'right-full mr-1'} z-50`}>
+        <div className={`absolute top-0 ${stripOnLeft ? 'left-full ml-1' : 'right-full mr-1'} z-50`} data-markup-editor>
           {popupContent}
         </div>
       )}
@@ -228,10 +247,57 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
                 preload="auto"
               />
             )}
+            {handle.state.mediaType === 'video' && (
+              <PoseTrackingOverlay
+                enabled={poseEnabled}
+                sideViewMode={poseSideViewMode}
+                preset={posePreset}
+                externalFrames={externalPoseFrames}
+                currentTime={currentTime}
+                isPlaying={isPlaying}
+                transform={transform}
+                videoAR={videoAR}
+              />
+            )}
             <MarkupOverlay handle={markupHandle} transform={transform} videoAR={videoAR} currentTime={currentTime} onOpenToolPanel={(type) => setActivePanel(type)} onClosePanel={() => setActivePanel(null)} />
             <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-xs font-semibold text-white px-2.5 py-1 rounded-md pointer-events-none">
               {label}
             </div>
+            {handle.state.mediaType === 'video' && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setPoseEnabled((prev) => !prev); }}
+                className={`absolute top-10 left-3 text-[11px] px-2 py-1 rounded border transition-colors ${
+                  poseEnabled
+                    ? 'bg-cyan-600/80 border-cyan-500 text-white'
+                    : 'bg-black/60 border-slate-600 text-slate-200 hover:border-cyan-500/70'
+                }`}
+                title="Toggle markerless pose tracking"
+              >
+                Pose
+              </button>
+            )}
+            {handle.state.mediaType === 'video' && poseEnabled && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setPoseSideViewMode((prev) => !prev); }}
+                className={`absolute top-10 left-16 text-[11px] px-2 py-1 rounded border transition-colors ${
+                  poseSideViewMode
+                    ? 'bg-cyan-500/80 border-cyan-400 text-white'
+                    : 'bg-black/60 border-slate-600 text-slate-200 hover:border-cyan-500/70'
+                }`}
+                title="Side-view mode: render one stable side only"
+              >
+                Side
+              </button>
+            )}
+            {handle.state.mediaType === 'video' && poseEnabled && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setPosePreset((prev) => nextPreset(prev)); }}
+                className="absolute top-10 left-28 text-[11px] px-2 py-1 rounded border transition-colors bg-black/60 border-slate-600 text-slate-200 hover:border-cyan-500/70"
+                title="Pose tracking preset"
+              >
+                {presetLabel(posePreset)}
+              </button>
+            )}
             {fileName && (
               <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-xs text-slate-300 px-2.5 py-1 rounded-md max-w-[200px] truncate pointer-events-none">
                 {fileName}

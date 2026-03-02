@@ -1,0 +1,12 @@
+name: velolens-dlc
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - deeplabcut
+  - fastapi
+  - uvicorn
+  - python-multipart
+  - opencv
+  - pandas
+  - numpy

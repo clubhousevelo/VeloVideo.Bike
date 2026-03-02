@@ -71,3 +71,33 @@ export default defineConfig([
   },
 ])
 ```
+
+## DeepLabCut integration (local worker)
+
+The app can submit videos to a local DeepLabCut worker and load per-frame tracked keypoints back into the pose overlay.
+
+### 1) Start frontend
+
+```bash
+npm install
+npm run dev
+```
+
+### 2) Start local DLC worker
+
+```bash
+cd dlc-worker
+/opt/homebrew/bin/brew install miniforge
+conda env create -f environment.yml
+conda activate velolens-dlc
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Model setup details are in `dlc-worker/README.md`.
+
+### 3) Run analysis from app
+
+- Load a video in Video 1 or Video 2
+- Select active video (`1`/`2`)
+- Click `Run DLC (Video X)` in the top header
+- Wait for status to switch to completed; overlay will use DLC frames automatically

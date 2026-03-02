@@ -34,6 +34,8 @@ export interface MarkupLine {
   isMeasurement?: boolean;
   /** User-defined name for the line (e.g. "Wheelbase") */
   name?: string;
+  /** Preferred timeline row/layer in timeline UI */
+  timelineRow?: number;
 }
 
 export interface MarkupAngle {
@@ -51,6 +53,8 @@ export interface MarkupAngle {
   displayDuration?: number | null;
   /** User-defined name for the angle (e.g. "Knee angle") */
   name?: string;
+  /** Preferred timeline row/layer in timeline UI */
+  timelineRow?: number;
 }
 
 export interface MarkupText {
@@ -68,6 +72,8 @@ export interface MarkupText {
   timestamp?: number;
   /** Seconds to display; null = infinite. Default: 5 for text. */
   displayDuration?: number | null;
+  /** Preferred timeline row/layer in timeline UI */
+  timelineRow?: number;
 }
 
 export type MarkupSelection = { type: 'line'; id: string } | { type: 'angle'; id: string } | { type: 'text'; id: string };
@@ -91,6 +97,7 @@ export interface MarkupState {
   textSize: number;
   hidden: boolean;
   selected: MarkupSelection | null;
+  hovered: MarkupSelection | null;
   undoStack: MarkupSnap[];
   redoStack: MarkupSnap[];
 }
@@ -99,14 +106,15 @@ export interface MarkupHandle {
   state: MarkupState;
   setTool: (tool: MarkupTool) => void;
   setSelected: (sel: MarkupSelection | null) => void;
+  setHovered: (sel: MarkupSelection | null) => void;
   setHidden: (hidden: boolean) => void;
   updateGrid: (g: Partial<GridSettings>) => void;
   addLine: (line: Omit<MarkupLine, 'id'>) => void;
   addAngle: (angle: Omit<MarkupAngle, 'id'>) => void;
   addText: (text: Omit<MarkupText, 'id'>) => void;
-  updateLine: (id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'displayDuration' | 'referenceLength' | 'unit' | 'isMeasurement' | 'name'>>) => void;
-  updateAngle: (id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; displayDuration: number | null; name: string }>) => void;
-  updateText: (id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth' | 'displayDuration'>>) => void;
+  updateLine: (id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'timestamp' | 'displayDuration' | 'referenceLength' | 'unit' | 'isMeasurement' | 'name' | 'timelineRow'>>) => void;
+  updateAngle: (id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; timestamp: number; displayDuration: number | null; name: string; timelineRow: number }>) => void;
+  updateText: (id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth' | 'timestamp' | 'displayDuration' | 'timelineRow'>>) => void;
   removeItem: (type: 'line' | 'angle' | 'text', id: string) => void;
   clearAll: () => void;
   undo: () => void;
@@ -186,6 +194,7 @@ const INITIAL_STATE: MarkupState = {
   textSize: 18,
   hidden: false,
   selected: null,
+  hovered: null,
   undoStack: [],
   redoStack: [],
 };
@@ -199,6 +208,10 @@ export function useMarkup(): MarkupHandle {
 
   const setSelected = useCallback((selected: MarkupSelection | null) => {
     setState((prev) => ({ ...prev, selected }));
+  }, []);
+
+  const setHovered = useCallback((hovered: MarkupSelection | null) => {
+    setState((prev) => ({ ...prev, hovered }));
   }, []);
 
   const setHidden = useCallback((hidden: boolean) => {
@@ -252,14 +265,14 @@ export function useMarkup(): MarkupHandle {
     });
   }, []);
 
-  const updateLine = useCallback((id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'displayDuration'>>) => {
+  const updateLine = useCallback((id: string, updates: Partial<Pick<MarkupLine, 'x1' | 'y1' | 'x2' | 'y2' | 'color' | 'width' | 'showAngle' | 'timestamp' | 'displayDuration' | 'referenceLength' | 'unit' | 'isMeasurement' | 'name' | 'timelineRow'>>) => {
     setState((prev) => ({
       ...prev,
       lines: prev.lines.map((l) => (l.id === id ? { ...l, ...updates } : l)),
     }));
   }, []);
 
-  const updateAngle = useCallback((id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; displayDuration: number | null }>) => {
+  const updateAngle = useCallback((id: string, updates: Partial<{ p1: Point; vertex: Point; p2: Point; color: string; width: number; angleDeg: number; timestamp: number; displayDuration: number | null; name: string; timelineRow: number }>) => {
     setState((prev) => {
       const angles = prev.angles.map((a) => {
         if (a.id !== id) return a;
@@ -270,7 +283,9 @@ export function useMarkup(): MarkupHandle {
           p2: updates.p2 ?? a.p2,
           ...(updates.color !== undefined && { color: updates.color }),
           ...(updates.width !== undefined && { width: updates.width }),
+          ...(updates.timestamp !== undefined && { timestamp: updates.timestamp }),
           ...(updates.displayDuration !== undefined && { displayDuration: updates.displayDuration }),
+          ...(updates.timelineRow !== undefined && { timelineRow: updates.timelineRow }),
           ...('name' in updates && { name: (updates.name as string | undefined) || undefined }),
         };
         // Only recalculate angleDeg when points change. Caller-supplied angleDeg uses visual coords for accuracy.
@@ -288,7 +303,7 @@ export function useMarkup(): MarkupHandle {
     });
   }, []);
 
-  const updateText = useCallback((id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth' | 'displayDuration'>>) => {
+  const updateText = useCallback((id: string, updates: Partial<Pick<MarkupText, 'content' | 'size' | 'color' | 'x' | 'y' | 'backgroundColor' | 'boxWidth' | 'timestamp' | 'displayDuration' | 'timelineRow'>>) => {
     setState((prev) => ({
       ...prev,
       texts: prev.texts.map((t) => (t.id === id ? { ...t, ...updates } : t)),
@@ -301,6 +316,7 @@ export function useMarkup(): MarkupHandle {
       return {
         ...prev,
         selected: prev.selected && prev.selected.id === id ? null : prev.selected,
+        hovered: prev.hovered && prev.hovered.id === id ? null : prev.hovered,
         lines: type === 'line' ? prev.lines.filter((l) => l.id !== id) : prev.lines,
         angles: type === 'angle' ? prev.angles.filter((a) => a.id !== id) : prev.angles,
         texts: type === 'text' ? prev.texts.filter((t) => t.id !== id) : prev.texts,
@@ -320,6 +336,7 @@ export function useMarkup(): MarkupHandle {
         texts: [],
         grid: DEFAULT_GRID,
         selected: null,
+        hovered: null,
         undoStack: [...prev.undoStack, snap].slice(-MAX_UNDO),
         redoStack: [],
       };
@@ -341,6 +358,7 @@ export function useMarkup(): MarkupHandle {
         grid: snap.grid,
         hidden: snap.hidden,
         selected: null,
+        hovered: null,
       };
     });
   }, []);
@@ -359,6 +377,8 @@ export function useMarkup(): MarkupHandle {
         texts: snap.texts,
         grid: snap.grid,
         hidden: snap.hidden,
+        selected: null,
+        hovered: null,
       };
     });
   }, []);
@@ -372,6 +392,7 @@ export function useMarkup(): MarkupHandle {
       grid: snap.grid,
       hidden: snap.hidden,
       selected: null,
+      hovered: null,
       undoStack: [],
       redoStack: [],
     }));
@@ -393,6 +414,7 @@ export function useMarkup(): MarkupHandle {
     state,
     setTool,
     setSelected,
+    setHovered,
     setHidden,
     updateGrid,
     addLine,
