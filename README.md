@@ -7,6 +7,19 @@ Currently, two official plugins are available:
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
 - [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
+## Custom domain (velolens.cc)
+
+The site is published at **https://velolens.cc**. To avoid `DNS_PROBE_FINISHED_NXDOMAIN` on **www.velolens.cc** when using OS default (or other) DNS, add this record at your domain’s DNS host:
+
+| Type  | Name | Value / Target              |
+|-------|------|----------------------------|
+| CNAME | `www` | `clubhousevelo.github.io` |
+
+- **Name:** `www` (or `www.velolens.cc` if the host requires the full name).
+- **Target:** `clubhousevelo.github.io` (no repo path, no trailing dot unless your host requires it).
+
+After saving, wait for DNS propagation (often a few minutes; some resolvers can take up to 24–48 hours). You can check with `nslookup www.velolens.cc` or [whatsmydns.net](https://www.whatsmydns.net/#CNAME/www.velolens.cc).
+
 ## React Compiler
 
 The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).

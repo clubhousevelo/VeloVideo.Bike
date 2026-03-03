@@ -234,7 +234,7 @@ export default function VideoPlayer({ label, handle, markupHandle, side, isActiv
               {label}
             </div>
             {fileName && (
-              <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-xs text-slate-300 px-2.5 py-1 rounded-md max-w-[200px] truncate pointer-events-none">
+              <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-xs text-slate-300 px-2.5 py-1 rounded-md max-w-[50%] min-w-0 truncate pointer-events-none">
                 {fileName}
               </div>
             )}

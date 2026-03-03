@@ -58,7 +58,7 @@ function VideoControls({
     <div className="space-y-1">
       <div className="flex items-center justify-between">
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{label}</div>
-        <div className="text-xs text-slate-500 truncate max-w-[200px]">{state.fileName}</div>
+        <div className="text-xs text-slate-500 truncate max-w-[75%] min-w-0">{state.fileName}</div>
       </div>
       {!isImage && (
         <>
