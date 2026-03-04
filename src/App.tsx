@@ -419,16 +419,19 @@ export default function App() {
       }
       if (key === 'l') {
         e.preventDefault();
+        if (activeMarkup.state.hidden) return;
         activeMarkup.setTool(activeMarkup.state.tool === 'line' ? 'none' : 'line');
         return;
       }
       if (key === 'a') {
         e.preventDefault();
+        if (activeMarkup.state.hidden) return;
         activeMarkup.setTool(activeMarkup.state.tool === 'angle' ? 'none' : 'angle');
         return;
       }
       if (key === 't') {
         e.preventDefault();
+        if (activeMarkup.state.hidden) return;
         activeMarkup.setTool(activeMarkup.state.tool === 'text' ? 'none' : 'text');
         return;
       }
@@ -461,32 +464,32 @@ export default function App() {
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-[1800px] mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-[1800px] mx-auto px-3 sm:px-6 py-2.5 sm:py-4 flex items-center justify-between gap-2 min-w-0">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <svg className="w-4.5 h-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
               </svg>
             </div>
-            <h1 className="text-lg font-bold text-white tracking-tight">
+            <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">
               Velo<span className="text-blue-400">Lens</span>
             </h1>
           </div>
 
           {/* Global controls */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
 
             {/* Global speed */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Speed</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500 hidden sm:inline">Speed</span>
               <select
                 value={globalRate}
                 onChange={(e) => {
                   setGlobalRate(parseFloat(e.target.value));
                   (e.target as HTMLSelectElement).blur();
                 }}
-                className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-2 py-1.5 cursor-pointer outline-none hover:border-slate-500 focus:border-blue-500 transition-colors"
+                className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-1.5 sm:px-2 py-1.5 cursor-pointer outline-none hover:border-slate-500 focus:border-blue-500 transition-colors"
               >
                 {SPEEDS.map((rate) => (
                   <option key={rate} value={rate}>{rate}x</option>
@@ -495,68 +498,68 @@ export default function App() {
             </div>
 
             {/* Separator */}
-            <div className="w-px h-6 bg-slate-700" />
+            <div className="w-px h-5 bg-slate-700 hidden xs:block" />
 
             {/* Global play/pause */}
             {hasAnyVideo && (
               <button
                 onClick={globalTogglePlay}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors shadow-lg shadow-emerald-600/20"
+                className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-colors shadow-lg shadow-emerald-600/20 shrink-0"
               >
                 {anyPlaying ? (
                   <>
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                       <rect x="6" y="4" width="4" height="16" rx="1" />
                       <rect x="14" y="4" width="4" height="16" rx="1" />
                     </svg>
-                    Pause All
+                    <span className="hidden sm:inline">Pause All</span>
                   </>
                 ) : (
                   <>
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />
                     </svg>
-                    Play All
+                    <span className="hidden sm:inline">Play All</span>
                   </>
                 )}
               </button>
             )}
 
             {/* Separator */}
-            <div className="w-px h-6 bg-slate-700" />
+            <div className="w-px h-5 bg-slate-700 hidden xs:block" />
 
             {/* View mode toggle */}
-            <div className="flex items-center bg-slate-800/60 rounded-lg p-1">
+            <div className="flex items-center bg-slate-800/60 rounded-lg p-0.5 sm:p-1 shrink-0">
               <div data-tooltip-side="bottom">
                 <button
                   onClick={() => setViewMode('side-by-side')}
                   data-tooltip="Hotkey: S"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md text-sm font-medium transition-all ${
                     viewMode === 'side-by-side'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 4.5v15m6-15v15M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15A2.25 2.25 0 0 0 2.25 6.75v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />
                   </svg>
-                  Side by Side
+                  <span className="hidden md:inline">Side by Side</span>
                 </button>
               </div>
               <div data-tooltip-side="bottom">
                 <button
                   onClick={() => setViewMode('overlay')}
                   data-tooltip="Hotkey: O"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                  className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-md text-sm font-medium transition-all ${
                     viewMode === 'overlay'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L12 12.75l-5.571-3m11.142 0 4.179 2.25L12 17.25l-9.75-5.25 4.179-2.25m11.142 0 4.179 2.25L12 21.75l-9.75-5.25 4.179-2.25" />
                   </svg>
-                  Overlay
+                  <span className="hidden md:inline">Overlay</span>
                 </button>
               </div>
             </div>
@@ -566,7 +569,7 @@ export default function App() {
 
       {/* Main content */}
       <main className="flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 min-h-0 w-full max-w-[1800px] mx-auto px-6 py-4 flex flex-col">
+        <div className="flex-1 min-h-0 w-full max-w-[1800px] mx-auto px-2 sm:px-6 py-2 sm:py-4 flex flex-col">
           {viewMode === 'side-by-side' ? (
             <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-6 overflow-visible" style={{ gridAutoRows: '1fr' }}>
               <VideoPlayer

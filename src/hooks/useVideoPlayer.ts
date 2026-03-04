@@ -32,6 +32,8 @@ export interface VideoState {
   trimStart: number;
   trimEnd: number;
   playbackRate: number;
+  volume: number;
+  muted: boolean;
   transform: VideoTransform;
   imageAdjust: ImageAdjust;
 }
@@ -41,6 +43,8 @@ export interface PersistedVideoMeta {
   trimEnd: number;
   currentTime: number;
   playbackRate: number;
+  volume?: number;
+  muted?: boolean;
   transform: VideoTransform;
   imageAdjust?: ImageAdjust;
 }
@@ -57,6 +61,9 @@ export interface VideoPlayerHandle {
   setTrimEnd: (val: number) => void;
   stepFrame: (dir: number) => void;
   setPlaybackRate: (rate: number) => void;
+  setVolume: (vol: number) => void;
+  setMuted: (muted: boolean) => void;
+  toggleMute: () => void;
   setTransform: (t: Partial<VideoTransform>) => void;
   resetTransform: () => void;
   setImageAdjust: (a: Partial<ImageAdjust>) => void;
@@ -77,6 +84,8 @@ const INITIAL_STATE: VideoState = {
   trimStart: 0,
   trimEnd: 0,
   playbackRate: 1,
+  volume: 0,
+  muted: true,
   transform: DEFAULT_TRANSFORM,
   imageAdjust: DEFAULT_IMAGE_ADJUST,
 };
@@ -223,6 +232,13 @@ export function useVideoPlayer(): VideoPlayerHandle {
     }
   }, [state.playbackRate]);
 
+  useEffect(() => {
+    const video = videoElRef.current;
+    if (!video) return;
+    video.volume = state.muted ? 0 : state.volume;
+    video.muted = state.muted;
+  }, [videoEl, state.volume, state.muted]);
+
   const clearVideo = useCallback(() => {
     const currentSrc = stateRef.current.src;
     if (currentSrc) URL.revokeObjectURL(currentSrc);
@@ -258,6 +274,8 @@ export function useVideoPlayer(): VideoPlayerHandle {
       const extra: Partial<VideoState> = {};
       if (meta?.transform != null) extra.transform = meta.transform;
       if (meta?.imageAdjust != null) extra.imageAdjust = meta.imageAdjust;
+      if (meta?.volume != null) extra.volume = meta.volume;
+      if (meta?.muted != null) extra.muted = meta.muted;
       setStateFromImageUrl(setState, url, fileName, rate, extra);
     } else {
       const base = { ...INITIAL_STATE, src: url, fileName, playbackRate: rate };
@@ -266,6 +284,8 @@ export function useVideoPlayer(): VideoPlayerHandle {
         if (meta.trimEnd != null) base.trimEnd = meta.trimEnd;
         if (meta.currentTime != null) base.currentTime = meta.currentTime;
         if (meta.playbackRate != null) base.playbackRate = meta.playbackRate;
+        if (meta.volume != null) base.volume = meta.volume;
+        if (meta.muted != null) base.muted = meta.muted;
         if (meta.transform != null) base.transform = meta.transform;
         if (meta.imageAdjust != null) base.imageAdjust = meta.imageAdjust;
       }
@@ -341,6 +361,24 @@ export function useVideoPlayer(): VideoPlayerHandle {
     setState((prev) => ({ ...prev, playbackRate: rate }));
   }, []);
 
+  const setVolume = useCallback((vol: number) => {
+    const clamped = Math.max(0, Math.min(1, vol));
+    setState((prev) => ({ ...prev, volume: clamped, muted: clamped === 0 }));
+  }, []);
+
+  const setMuted = useCallback((muted: boolean) => {
+    setState((prev) => ({ ...prev, muted }));
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setState((prev) => {
+      if (prev.muted) {
+        return { ...prev, muted: false, volume: prev.volume === 0 ? 0.5 : prev.volume };
+      }
+      return { ...prev, muted: true };
+    });
+  }, []);
+
   const setTransform = useCallback((t: Partial<VideoTransform>) => {
     setState((prev) => ({ ...prev, transform: { ...prev.transform, ...t } }));
   }, []);
@@ -369,6 +407,9 @@ export function useVideoPlayer(): VideoPlayerHandle {
     setTrimEnd,
     stepFrame,
     setPlaybackRate,
+    setVolume,
+    setMuted,
+    toggleMute,
     setTransform,
     resetTransform,
     setImageAdjust,

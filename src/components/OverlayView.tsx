@@ -77,29 +77,30 @@ function VideoControls({
             <span>{formatTime(Math.max(0, state.currentTime - state.trimStart))}</span>
             <span className="text-slate-500">/ {formatTime(Math.max(0, state.trimEnd - state.trimStart))}</span>
           </div>
-          <div className="flex items-center w-full">
-            <div className="flex-1 min-w-0" />
-            <div className="flex items-center justify-center gap-3 shrink-0">
-              <button onPointerDown={(e) => repeatBack.onPointerDown(e)} className="p-2 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Previous frame (hold to scrub)">
-                <svg className="w-4.5 h-4.5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
+          <div className="flex items-center justify-between w-full gap-1 sm:grid sm:grid-cols-[1fr_auto_1fr]">
+            {/* Left spacer — hidden on mobile so flex sees only 2 items; visible on desktop for 3-col grid centering */}
+            <div className="hidden sm:block" />
+            <div className="flex items-center gap-1 shrink-0">
+              <button onPointerDown={(e) => repeatBack.onPointerDown(e)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Previous frame (hold to scrub)">
+                <svg className="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
               </button>
-              <button onClick={togglePlay} className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors">
+              <button onClick={togglePlay} className="w-9 h-9 flex items-center justify-center shrink-0 bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors">
                 {state.isPlaying ? (
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
                 ) : (
-                  <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                 )}
               </button>
-              <button onPointerDown={(e) => repeatFwd.onPointerDown(e)} className="p-2 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Next frame (hold to scrub)">
-                <svg className="w-4.5 h-4.5 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
+              <button onPointerDown={(e) => repeatFwd.onPointerDown(e)} className="p-1.5 text-slate-400 hover:text-white transition-colors rounded hover:bg-slate-800 select-none" title="Next frame (hold to scrub)">
+                <svg className="w-4 h-4 pointer-events-none" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
               </button>
             </div>
-            <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-              <button onClick={selectFile} className="text-xs text-slate-500 hover:text-slate-300 py-0.5 transition-colors">
-                {isImage ? 'Change image' : 'Change video'}
+            <div className="flex items-center gap-1 min-w-0 shrink-0 sm:justify-end">
+              <button onClick={selectFile} className="text-[11px] text-slate-500 hover:text-slate-300 py-0.5 transition-colors">
+                Change
               </button>
-              <span className="text-slate-700">|</span>
-              <button onClick={handleRemove} className="text-xs text-slate-600 hover:text-red-400 py-0.5 transition-colors">
+              <span className="text-[11px] text-slate-700">|</span>
+              <button onClick={handleRemove} className="text-[11px] text-slate-600 hover:text-red-400 py-0.5 transition-colors">
                 Remove
               </button>
             </div>
@@ -110,7 +111,7 @@ function VideoControls({
         <div className="flex items-center justify-end w-full">
           <div className="flex items-center gap-2">
             <button onClick={selectFile} className="text-xs text-slate-500 hover:text-slate-300 py-0.5 transition-colors">
-              Change image
+              Change
             </button>
             <span className="text-slate-700">|</span>
             <button onClick={handleRemove} className="text-xs text-slate-600 hover:text-red-400 py-0.5 transition-colors">
@@ -292,6 +293,11 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
               textActive={text1Active}
               markupHidden={markupHandle1.state.hidden}
               onToggleHidden={() => markupHandle1.setHidden(!markupHandle1.state.hidden)}
+              volumeMuted={handle1.state.muted}
+              volumeLevel={handle1.state.volume}
+              onVolumeChange={handle1.setVolume}
+              onToggleMute={handle1.toggleMute}
+              onSetMuted={handle1.setMuted}
             />
             <ActionStrip
             canUndo={markupHandle1.state.undoStack.length > 0}
@@ -302,7 +308,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
             onClearAll={markupHandle1.clearAll}
           />
           </div>
-          {activePanel1 && <div className="absolute left-full top-0 ml-1 z-50" data-markup-editor>{popup1}</div>}
+          {activePanel1 && activePanel1 !== 'volume' && <div className="absolute top-0 left-full ml-1 z-50" data-markup-editor>{popup1}</div>}
         </div>
 
         {/* Main canvas */}
@@ -515,6 +521,11 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
               textActive={text2Active}
               markupHidden={markupHandle2.state.hidden}
               onToggleHidden={() => markupHandle2.setHidden(!markupHandle2.state.hidden)}
+              volumeMuted={handle2.state.muted}
+              volumeLevel={handle2.state.volume}
+              onVolumeChange={handle2.setVolume}
+              onToggleMute={handle2.toggleMute}
+              onSetMuted={handle2.setMuted}
             />
             <ActionStrip
               canUndo={markupHandle2.state.undoStack.length > 0}
@@ -525,7 +536,7 @@ export default function OverlayView({ handle1, handle2, markupHandle1, markupHan
               onClearAll={markupHandle2.clearAll}
             />
           </div>
-          {activePanel2 && <div className="absolute right-full top-0 mr-1 z-50" data-markup-editor>{popup2}</div>}
+          {activePanel2 && activePanel2 !== 'volume' && <div className="absolute top-0 right-full mr-1 z-50" data-markup-editor>{popup2}</div>}
         </div>
       </div>
 
