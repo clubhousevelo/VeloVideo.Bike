@@ -20,6 +20,17 @@ The site is published at **https://velolens.cc**. To avoid `DNS_PROBE_FINISHED_N
 
 After saving, wait for DNS propagation (often a few minutes; some resolvers can take up to 24–48 hours). You can check with `nslookup www.velolens.cc` or [whatsmydns.net](https://www.whatsmydns.net/#CNAME/www.velolens.cc).
 
+## Analytics (Cloudflare Web Analytics)
+
+The site uses [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/) (free, no cookies) for visitor counts and referrers. To enable:
+
+1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → **Web Analytics** → **Add a site**.
+2. Enter `velolens.cc` (or your production hostname) and complete setup.
+3. Open **Manage site** and copy the `data-cf-beacon` token from the snippet.
+4. In `index.html`, replace `REPLACE_WITH_YOUR_TOKEN` with that token and redeploy.
+
+You can then view daily visitors and traffic sources in the Cloudflare Web Analytics dashboard.
+
 ## React Compiler
 
 The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
